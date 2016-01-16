@@ -11,7 +11,9 @@
 -- of "Path" module. It also implements commonly used primitives like
 -- recursive scanning of copying of directories.
 
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP               #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeFamilies      #-}
 
 module Path.IO
   ( -- * Actions on directories
@@ -33,8 +35,7 @@ module Path.IO
   , getUserDocsDir
   , getTempDir
     -- * Path transformation
-  , canonicalizePath
-  , makeAbsolute
+  , AnyPath (..)
     -- * Actions on files
   , removeFile
   , renameFile
@@ -73,9 +74,13 @@ where
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class (MonadIO (..))
+import Data.Either (lefts, rights)
+import Data.Foldable (foldl')
+import Data.List ((\\))
 import Data.Time (UTCTime)
 import Path
 import qualified System.Directory as D
+import qualified System.FilePath  as F
 
 ----------------------------------------------------------------------------
 -- Actions on directories
@@ -112,55 +117,50 @@ renameDir :: MonadIO m
 renameDir = liftD2 D.renameDirectory
 
 -- | @'listDir' dir@ returns a list of /all/ entries in @dir@ without the
--- special entries (@.@ and @..@).
+-- special entries (@.@ and @..@). Entries are not sorted.
 --
--- The operation may fail with:
---
--- * 'HardwareFault'
---   A physical I\/O error has occurred.
---   @[EIO]@
---
--- * 'InvalidArgument'
---   The operand is not a valid directory name.
---   @[ENAMETOOLONG, ELOOP]@
---
--- * 'isDoesNotExistError' \/ 'NoSuchThing'
---   The directory does not exist.
---   @[ENOENT, ENOTDIR]@
---
--- * 'isPermissionError' \/ 'PermissionDenied'
---   The process has insufficient privileges to perform the operation.
---   @[EACCES]@
---
--- * 'ResourceExhausted'
---   Insufficient resources are available to perform the operation.
---   @[EMFILE, ENFILE]@
---
--- * 'InappropriateType'
---   The path refers to an existing non-directory object.
---   @[ENOTDIR]@
+-- The operation may fail with the same exceptions as
+-- 'D.getDirectoryContents' and also with 'PathParseException', although
+-- that should not normally happen.
 
-listDir :: MonadIO m
+listDir :: (MonadIO m, MonadThrow m)
   => Path b Dir
   -> m ([Path Abs Dir], [Path Abs File])
-listDir path = undefined
-  -- (filter f) <$> (getDirectoryContents path)
-  -- where f filename = filename /= "." && filename /= ".."
+listDir path = do
+  bpath <- makeAbsolute path
+  raw   <- liftD D.getDirectoryContents bpath
+  items <- forM (raw \\ [".", ".."]) $ \item -> do
+    let ipath = fromAbsDir bpath F.</> item
+    isDir <- liftIO (D.doesDirectoryExist ipath)
+    if isDir
+      then Left  <$> parseAbsDir  ipath
+      else Right <$> parseAbsFile ipath
+  return (lefts items, rights items)
 
--- | FIXME
+-- | Similar to 'listDir', but recursively traverses every sub-directory,
+-- and collects all files and directories. This can fail with the same
+-- exceptions as 'listDir'.
 
-listDirRecur :: MonadIO m
+listDirRecur :: (MonadIO m, MonadThrow m)
   => Path b Dir
-  -> m [Path Abs File]
-listDirRecur = undefined
+  -> m ([Path Abs Dir], [Path Abs File])
+listDirRecur path = do
+  bpath <- makeAbsolute path
+  items <- listDir bpath
+  foldl' mappend items <$> mapM listDirRecur (fst items)
 
--- | Copy directory recursively. FIXME add better description
+-- | Copy directory recursively. This is not (yet) smart about symbolic
+-- links, but tries to preserve permissions when possible.
 
-copyDirRecur :: MonadIO m
+copyDirRecur :: (MonadIO m, MonadThrow m)
   => Path b0 Dir
   -> Path b1 Dir
   -> m ()
-copyDirRecur = undefined
+copyDirRecur src dest = do
+  (dirs, files) <- listDirRecur src
+  mapM_ (toDest >=> createDirIfMissing True) dirs -- FIXME permissions
+  mapM toDest files >>= mapM_ (uncurry copyFile) . zip files
+  where toDest x = (dest </>) <$> stripDir src x -- TODO finish
 
 ----------------------------------------------------------------------------
 -- Current working directory
@@ -202,7 +202,7 @@ getHomeDir = liftIO D.getHomeDirectory >>= parseAbsDir
 getAppUserDataDir :: (MonadIO m, MonadThrow m)
   => Path File Dir     -- ^ A relative path that is appended to the path
   -> m (Path Abs Dir)
-getAppUserDataDir = (>>= parseAbsDir) . (liftD D.getAppUserDataDirectory)
+getAppUserDataDir = (>>= parseAbsDir) . liftD D.getAppUserDataDirectory
 
 -- | See 'D.getUserDocumentsDirectory'.
 
@@ -217,19 +217,26 @@ getTempDir = liftIO D.getTemporaryDirectory >>= parseAbsDir
 ----------------------------------------------------------------------------
 -- Path transformation
 
--- | See 'D.canonicalizePath'.
+class AnyPath path where
+  type AbsPath path :: *
 
-canonicalizePath :: (MonadIO m, MonadThrow m)
-  => Path b t
-  -> m (Path Abs t)
-canonicalizePath = undefined -- TODO
+  -- | See 'D.canonicalizePath'.
 
--- | See 'D.makeAbsolute'.
+  canonicalizePath :: (MonadIO m, MonadThrow m) => path -> m (AbsPath path)
 
-makeAbsolute :: (MonadIO m, MonadThrow m)
-  => Path b t
-  -> m (Path Abs t)
-makeAbsolute = undefined -- TODO
+  -- | See 'D.makeAbsolute'.
+
+  makeAbsolute :: (MonadIO m, MonadThrow m) => path -> m (AbsPath path)
+
+instance AnyPath (Path b File) where
+  type AbsPath (Path b File) = Path Abs File
+  canonicalizePath = liftD D.canonicalizePath >=> parseAbsFile
+  makeAbsolute     = liftD D.makeAbsolute     >=> parseAbsFile
+
+instance AnyPath (Path b Dir) where
+  type AbsPath (Path b Dir) = Path Abs Dir
+  canonicalizePath = liftD D.canonicalizePath >=> parseAbsDir
+  makeAbsolute     = liftD D.makeAbsolute     >=> parseAbsDir
 
 ----------------------------------------------------------------------------
 -- Actions on files
@@ -287,7 +294,7 @@ findFilesWith :: (MonadIO m, MonadThrow m)
   -> [Path b Dir]
   -> Path Rel File
   -> m [Path Abs File]
-findFilesWith p' dirs file = undefined -- TODO finish it later
+findFilesWith = undefined -- TODO finish it later
 
 ----------------------------------------------------------------------------
 -- Existence tests
@@ -305,8 +312,7 @@ doesDirExist = liftD D.doesDirectoryExist
 -- | Check if there is a file or directory on specified path.
 
 isLocationOccupied :: MonadIO m => Path b t -> m Bool
-isLocationOccupied p = undefined -- FIXME how to handle this elegantly?
-  -- liftM2 (||) (doesFileExist p) (doesDirExist p)
+isLocationOccupied = undefined -- TODO
 
 ----------------------------------------------------------------------------
 -- Permissions

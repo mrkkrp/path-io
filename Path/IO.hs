@@ -84,6 +84,10 @@ import Path
 import qualified System.Directory as D
 import qualified System.FilePath  as F
 
+#if !MIN_VERSION_base(4,8,0)
+import Data.Monoid (mappend)
+#endif
+
 ----------------------------------------------------------------------------
 -- Actions on directories
 
@@ -270,11 +274,11 @@ listDir path = do
   bpath <- makeAbsolute path
   raw   <- liftD D.getDirectoryContents bpath
   items <- forM (raw \\ [".", ".."]) $ \item -> do
-    let ipath = fromAbsDir bpath F.</> item
+    let ipath = toFilePath bpath F.</> item
     isDir <- liftIO (D.doesDirectoryExist ipath)
     if isDir
-      then Left  <$> parseAbsDir  ipath
-      else Right <$> parseAbsFile ipath
+      then Left  `liftM` parseAbsDir  ipath
+      else Right `liftM` parseAbsFile ipath
   return (lefts items, rights items)
 
 -- | Similar to 'listDir', but recursively traverses every sub-directory,
@@ -287,7 +291,7 @@ listDirRecur :: (MonadIO m, MonadThrow m)
 listDirRecur path = do
   bpath <- makeAbsolute path
   items <- listDir bpath
-  foldl' mappend items <$> mapM listDirRecur (fst items)
+  foldl' mappend items `liftM` mapM listDirRecur (fst items)
 
 -- | Copy directory recursively. This is not smart about symbolic links, but
 -- tries to preserve permissions when possible. If destination directory
@@ -325,7 +329,7 @@ swapParent :: MonadThrow m
   -> Path Abs Dir      -- ^ New parent
   -> Path Abs t        -- ^ Path to transform
   -> m (Path Abs t)
-swapParent old new path = (new </>) <$> stripDir old path
+swapParent old new path = (new </>) `liftM` stripDir old path
 
 ----------------------------------------------------------------------------
 -- Current working directory
@@ -697,7 +701,7 @@ findFile :: (MonadIO m, MonadThrow m)
   => [Path b Dir]      -- ^ Set of directories to search in
   -> Path Rel File     -- ^ Filename of interest
   -> m (Maybe (Path Abs File)) -- ^ Absolute path to file (if found)
-findFile dirs file = listToMaybe <$> findFiles dirs file
+findFile dirs file = listToMaybe `liftM` findFiles dirs file
 
 -- | Search through the given set of directories for the given file and
 -- return a list of paths where the given file exists.
@@ -719,11 +723,11 @@ findFilesWith :: (MonadIO m, MonadThrow m)
   -> m [Path Abs File] -- ^ Absolute paths to all found files
 findFilesWith _ [] _ = return []
 findFilesWith f (d:ds) file = do
-  bfile <- (</> file) <$> makeAbsolute d
+  bfile <- (</> file) `liftM` makeAbsolute d
   exist <- doesFileExist file
   b <- if exist then f bfile else return False
   if b
-    then (bfile:) <$> findFilesWith f ds file
+    then (bfile:) `liftM` findFilesWith f ds file
     else findFilesWith f ds file
 
 ----------------------------------------------------------------------------

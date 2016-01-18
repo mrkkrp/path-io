@@ -8,8 +8,8 @@
 This package provides interface to
 [`directory`](https://hackage.haskell.org/package/directory) package for
 users of Chris Done's [`path`](https://hackage.haskell.org/package/path). It
-also implements some missing stuff like scanning and recursive copying of
-directories, other frequently used functionality.
+also implements some missing stuff like recursive scanning and copying of
+directories.
 
 Consult Haddocks for usage, which should be trivial.
 

@@ -7,9 +7,9 @@
 -- Stability   :  experimental
 -- Portability :  portable
 --
--- This module provides interface to "System.Directory" convenient for users
--- of "Path" module. It also implements commonly used primitives like
--- recursive scanning and copying of directories.
+-- This module provides interface to "System.Directory" for users of "Path"
+-- module. It also implements commonly used primitives like recursive
+-- scanning and copying of directories.
 
 {-# LANGUAGE CPP               #-}
 {-# LANGUAGE FlexibleInstances #-}

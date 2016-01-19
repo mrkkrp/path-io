@@ -233,8 +233,8 @@ removeDirRecur = liftD D.removeDirectoryRecursive
 -- @[ENOTDIR, EISDIR]@
 
 renameDir :: MonadIO m
-  => Path b1 Dir       -- ^ Old name
-  -> Path b2 Dir       -- ^ New name
+  => Path b0 Dir       -- ^ Old name
+  -> Path b1 Dir       -- ^ New name
   -> m ()
 renameDir = liftD2 D.renameDirectory
 
@@ -659,8 +659,8 @@ removeFile = liftD D.removeFile
 -- @[ENOTDIR, EISDIR, EINVAL, EEXIST, ENOTEMPTY]@
 
 renameFile :: MonadIO m
-  => Path b File       -- ^ Original location
-  -> Path b File       -- ^ New location
+  => Path b0 File      -- ^ Original location
+  -> Path b1 File      -- ^ New location
   -> m ()
 renameFile = liftD2 D.renameFile
 
@@ -670,8 +670,8 @@ renameFile = liftD2 D.renameFile
 -- @old@ are copied to @new@, if possible.
 
 copyFile :: MonadIO m
-  => Path b File       -- ^ Original location
-  -> Path b File       -- ^ Where to put copy
+  => Path b0 File      -- ^ Original location
+  -> Path b1 File      -- ^ Where to put copy
   -> m ()
 copyFile = liftD2 D.copyFile
 
@@ -903,11 +903,12 @@ liftD2 :: MonadIO m
   -> m a
 liftD2 m a b = liftIO $ m (toFilePath a) (toFilePath b)
 
--- | Similar to 'liftD2', but allows to pass second argument.
+-- | Similar to 'liftD2', but allows to pass second argument of arbitrary
+-- type.
 
 liftD2' :: MonadIO m
   => (FilePath -> v -> IO a) -- ^ Original action
-  -> Path b0 t0        -- ^ First 'Path' argument
+  -> Path b t          -- ^ First 'Path' argument
   -> v                 -- ^ Second argument
   -> m a
 liftD2' m a v = liftIO $ m (toFilePath a) v

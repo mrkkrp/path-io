@@ -57,6 +57,7 @@ library
                     , exceptions   >= 0.8
                     , filepath     >= 1.2
                     , path         >= 0.5
+                    , temporary    >= 1.1
                     , time         >= 1.4
                     , transformers >= 0.3
   exposed-modules:    Path.IO

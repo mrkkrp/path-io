@@ -13,6 +13,7 @@
 
 {-# LANGUAGE CPP               #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE TypeFamilies      #-}
 
 module Path.IO
@@ -45,6 +46,14 @@ module Path.IO
   , findFile
   , findFiles
   , findFilesWith
+    -- * Temporary files and directories
+  , withTempFile
+  , withTempDir
+  , withSystemTempFile
+  , withSystemTempDir
+  , openTempFile
+  , openBinaryTempFile
+  , createTempDir
     -- * Existence tests
   , doesFileExist
   , doesDirExist
@@ -81,8 +90,10 @@ import Data.List ((\\))
 import Data.Maybe (listToMaybe)
 import Data.Time (UTCTime)
 import Path
+import System.IO (Handle)
 import qualified System.Directory as D
 import qualified System.FilePath  as F
+import qualified System.IO.Temp   as T
 
 #if !MIN_VERSION_base(4,8,0)
 import Data.Monoid (mappend)
@@ -729,6 +740,120 @@ findFilesWith f (d:ds) file = do
   if b
     then (bfile:) `liftM` findFilesWith f ds file
     else findFilesWith f ds file
+
+----------------------------------------------------------------------------
+-- Temporary files and directories
+
+-- | Use a temporary file that doesn't already exist.
+--
+-- Creates a new temporary file inside the given directory, making use of
+-- the template. The temporary file is deleted after use.
+
+withTempFile :: (MonadIO m, MonadMask m)
+  => Path b Dir        -- ^ Directory to create the file in
+  -> String            -- ^ File name template, see 'openTempFile'
+  -> (Path Abs File -> Handle -> m a) -- ^ Callback that can use the file
+  -> m a
+withTempFile path t action = do
+  apath <- makeAbsolute path
+  T.withTempFile (toFilePath apath) t $ \file h ->
+    parseAbsFile file >>= flip action h
+
+-- | Create and use a temporary directory.
+--
+-- Creates a new temporary directory inside the given directory, making use
+-- of the template. The temporary directory is deleted after use.
+
+withTempDir :: (MonadIO m, MonadMask m)
+  => Path b Dir        -- ^ Directory to create the file in
+  -> String            -- ^ Directory name template, see 'openTempFile'
+  -> (Path Abs Dir -> m a) -- ^ Callback that can use the directory
+  -> m a
+withTempDir path t action = do
+  apath <- makeAbsolute path
+  T.withTempDirectory (toFilePath apath) t (parseAbsDir >=> action)
+
+-- | Create and use a temporary file in the system standard temporary
+-- directory.
+--
+-- Behaves exactly the same as 'withTempFile', except that the parent
+-- temporary directory will be that returned by 'getTempDir'.
+
+withSystemTempFile :: (MonadIO m, MonadMask m)
+  => String            -- ^ File name template, see 'openTempFile'
+  -> (Path Abs File -> Handle -> m a) -- ^ Callback that can use the file
+  -> m a
+withSystemTempFile t action = getTempDir >>= \path ->
+  withTempFile path t action
+
+-- | Create and use a temporary directory in the system standard temporary
+-- directory.
+--
+-- Behaves exactly the same as 'withTempDir', except that the parent
+-- temporary directory will be that returned by 'getTempDir'.
+
+withSystemTempDir :: (MonadIO m, MonadMask m)
+  => String            -- ^ Directory name template, see 'openTempFile'
+  -> (Path Abs Dir -> m a) -- ^ Callback that can use the directory
+  -> m a
+withSystemTempDir t action = getTempDir >>= \path ->
+  withTempDir path t action
+
+-- | The function creates a temporary file in @rw@ mode. The created file
+-- isn't deleted automatically, so you need to delete it manually.
+--
+-- The file is created with permissions such that only the current user can
+-- read/write it.
+--
+-- With some exceptions (see below), the file will be created securely in
+-- the sense that an attacker should not be able to cause openTempFile to
+-- overwrite another file on the filesystem using your credentials, by
+-- putting symbolic links (on Unix) in the place where the temporary file is
+-- to be created. On Unix the @O_CREAT@ and @O_EXCL@ flags are used to
+-- prevent this attack, but note that @O_EXCL@ is sometimes not supported on
+-- NFS filesystems, so if you rely on this behaviour it is best to use local
+-- filesystems only.
+
+openTempFile :: (MonadIO m, MonadThrow m)
+  => Path b Dir        -- ^ Directory to create file in
+  -> String
+     -- ^ File name template; if the template is "foo.ext" then the created
+     -- file will be @\"fooXXX.ext\"@ where @XXX@ is some random number
+  -> m (Path Abs File, Handle) -- ^ Name of created file and its 'Handle'
+openTempFile path t = do
+  apath <- makeAbsolute path
+  (tfile, h) <- liftD2' T.openTempFile apath t
+  (,h) `liftM` parseAbsFile tfile
+
+-- | Like 'openTempFile', but opens the file in binary mode. On Windows,
+-- reading a file in text mode (which is the default) will translate @CRLF@
+-- to @LF@, and writing will translate @LF@ to @CRLF@. This is usually what
+-- you want with text files. With binary files this is undesirable; also, as
+-- usual under Microsoft operating systems, text mode treats control-Z as
+-- EOF. Binary mode turns off all special treatment of end-of-line and
+-- end-of-file characters.
+
+openBinaryTempFile :: (MonadIO m, MonadThrow m)
+  => Path b Dir        -- ^ Directory to create file in
+  -> String            -- ^ File name template, see 'openTempFile'
+  -> m (Path Abs File, Handle) -- ^ Name of created file and its 'Handle'
+openBinaryTempFile path t = do
+  apath <- makeAbsolute path
+  (tfile, h) <- liftD2' T.openBinaryTempFile apath t
+  (,h) `liftM` parseAbsFile tfile
+
+-- | Create temporary directory. The created directory isn't deleted
+-- automatically, so you need to delete it manually.
+--
+-- The directory is created with permissions such that only the current user
+-- can read/write it.
+
+createTempDir :: (MonadIO m, MonadThrow m)
+  => Path b Dir        -- ^ Directory to create file in
+  -> String            -- ^ Directory name template, see 'openTempFile'
+  -> m (Path Abs Dir)  -- ^ Name of created temporary directory
+createTempDir path t = makeAbsolute path >>= \apath ->
+  liftD2' T.createTempDirectory apath t >>= parseAbsDir
 
 ----------------------------------------------------------------------------
 -- Existence tests

@@ -803,7 +803,7 @@ withSystemTempDir t action = getTempDir >>= \path ->
 -- isn't deleted automatically, so you need to delete it manually.
 --
 -- The file is created with permissions such that only the current user can
--- read/write it.
+-- read\/write it.
 --
 -- With some exceptions (see below), the file will be created securely in
 -- the sense that an attacker should not be able to cause openTempFile to
@@ -846,7 +846,7 @@ openBinaryTempFile path t = do
 -- automatically, so you need to delete it manually.
 --
 -- The directory is created with permissions such that only the current user
--- can read/write it.
+-- can read\/write it.
 
 createTempDir :: (MonadIO m, MonadThrow m)
   => Path b Dir        -- ^ Directory to create file in

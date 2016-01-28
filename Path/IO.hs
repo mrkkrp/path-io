@@ -38,6 +38,8 @@ module Path.IO
     -- * Path transformation
   , AbsPath
   , AnyPath (..)
+  , resolveFile
+  , resolveDir
     -- * Actions on files
   , removeFile
   , renameFile
@@ -92,6 +94,7 @@ import Data.Maybe (listToMaybe)
 import Data.Time (UTCTime)
 import Path
 import System.IO (Handle)
+import System.IO.Error (isDoesNotExistError)
 import qualified System.Directory as D
 import qualified System.FilePath  as F
 import qualified System.IO.Temp   as T
@@ -591,6 +594,27 @@ instance AnyPath (Path b File) where
 instance AnyPath (Path b Dir) where
   canonicalizePath = liftD D.canonicalizePath >=> parseAbsDir
   makeAbsolute     = liftD D.makeAbsolute     >=> parseAbsDir
+
+-- | Append stringly-typed path to an absolute path and then canonicalize
+-- it. This can throw the same exceptions as 'canonicalizePath'. In
+-- particular, 'System.IO.Error.doesNotExistErrorType' is thrown if
+-- resulting file does not exist and thus its path cannot be canonicalized.
+
+resolveFile :: (MonadIO m, MonadThrow m)
+  => Path Abs Dir
+  -> FilePath
+  -> m (Path Abs File)
+resolveFile b p = f (toFilePath b F.</> p) >>= parseAbsFile
+  where f = liftIO . D.canonicalizePath
+
+-- | The same as 'resolveFile', but for directories.
+
+resolveDir :: (MonadIO m, MonadThrow m)
+  => Path Abs Dir
+  -> FilePath
+  -> m (Path Abs Dir)
+resolveDir b p = f (toFilePath b F.</> p) >>= parseAbsDir
+  where f = liftIO . D.canonicalizePath
 
 ----------------------------------------------------------------------------
 -- Actions on files

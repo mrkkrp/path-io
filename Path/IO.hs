@@ -537,7 +537,7 @@ getTempDir = liftIO D.getTemporaryDirectory >>= parseAbsDir
 ----------------------------------------------------------------------------
 -- Path transformation
 
--- | Closed type-family describing how to get absolute version of given
+-- | Closed type family describing how to get absolute version of given
 -- 'Path'.
 
 type family AbsPath path where

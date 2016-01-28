@@ -58,6 +58,7 @@ module Path.IO
   , doesFileExist
   , doesDirExist
   , isLocationOccupied
+  , forgivingAbsence
     -- * Permissions
   , D.Permissions
   , D.emptyPermissions
@@ -879,6 +880,13 @@ isLocationOccupied path = do
   file <- liftIO (D.doesFileExist fp)
   dir  <- liftIO (D.doesDirectoryExist fp)
   return (file || dir)
+
+-- | Utility function for a common pattern of ignoring “does-not-exist”
+-- errors.
+
+forgivingAbsence :: (MonadIO m, MonadCatch m) => m () -> m ()
+forgivingAbsence f = catch f $ \e ->
+  unless (isDoesNotExistError e) (throwM e)
 
 ----------------------------------------------------------------------------
 -- Permissions

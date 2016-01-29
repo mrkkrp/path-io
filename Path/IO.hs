@@ -37,6 +37,7 @@ module Path.IO
   , getTempDir
     -- * Path transformation
   , AbsPath
+  , RelPath
   , AnyPath (..)
   , resolveFile
   , resolveDir
@@ -544,6 +545,13 @@ type family AbsPath path where
   AbsPath (Path b File) = Path Abs File
   AbsPath (Path b Dir)  = Path Abs Dir
 
+-- | Closed type family describing how to get relative version of given
+-- 'Path'.
+
+type family RelPath path where
+  RelPath (Path b File) = Path Rel File
+  RelPath (Path b Dir)  = Path Rel Dir
+
 -- | Class of things ('Path's) that can be canonicalized and made absolute.
 
 class AnyPath path where
@@ -576,7 +584,8 @@ class AnyPath path where
   --
   -- /Known bug(s)/: on Windows, the function does not resolve symbolic links.
 
-  canonicalizePath :: (MonadIO m, MonadThrow m) => path -> m (AbsPath path)
+  canonicalizePath :: (MonadIO m, MonadThrow m)
+    => path -> m (AbsPath path)
 
   -- | Make a path absolute by prepending the current directory (if it isn't
   -- already absolute) and applying 'normalise' to the result.
@@ -585,15 +594,32 @@ class AnyPath path where
   -- the operation may fail with the same exceptions as
   -- 'getCurrentDirectory'.
 
-  makeAbsolute :: (MonadIO m, MonadThrow m) => path -> m (AbsPath path)
+  makeAbsolute :: (MonadIO m, MonadThrow m)
+    => path -> m (AbsPath path)
+
+  -- | Make a path relative to given directory.
+
+  makeRelative :: MonadThrow m
+    => Path Abs Dir    -- ^ Base directory
+    -> path            -- ^ Path that will be made relative to base directory
+    -> m (RelPath path)
+
+  -- | Make a path relative to current working directory.
+
+  makeRelativeToCurrentDir :: (MonadIO m, MonadThrow m)
+    => path -> m (RelPath path)
 
 instance AnyPath (Path b File) where
   canonicalizePath = liftD D.canonicalizePath >=> parseAbsFile
   makeAbsolute     = liftD D.makeAbsolute     >=> parseAbsFile
+  makeRelative b p = parseRelFile (F.makeRelative (toFilePath b) (toFilePath p))
+  makeRelativeToCurrentDir p = getCurrentDir >>= flip makeRelative p
 
 instance AnyPath (Path b Dir) where
   canonicalizePath = liftD D.canonicalizePath >=> parseAbsDir
   makeAbsolute     = liftD D.makeAbsolute     >=> parseAbsDir
+  makeRelative b p = parseRelDir (F.makeRelative (toFilePath b) (toFilePath p))
+  makeRelativeToCurrentDir p = getCurrentDir >>= flip makeRelative p
 
 -- | Append stringly-typed path to an absolute path and then canonicalize
 -- it. This can throw the same exceptions as 'canonicalizePath'. In

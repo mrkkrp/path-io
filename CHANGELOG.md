@@ -4,6 +4,9 @@
   the package now provides all functionality that `Path.IO` module in Stack
   has.
 
+* Added closed type family `RelPath`, `makeRelative`, and
+  `makeRelativeToCurrentDir` functions.
+
 ## Path IO 0.2.0
 
 * Added functions from `temporary`: `withTempFile`, `withTempDir`,

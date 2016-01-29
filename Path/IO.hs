@@ -64,6 +64,7 @@ module Path.IO
   , doesDirExist
   , isLocationOccupied
   , forgivingAbsence
+  , forgivingAbsence'
     -- * Permissions
   , D.Permissions
   , D.emptyPermissions
@@ -955,6 +956,11 @@ forgivingAbsence :: (MonadIO m, MonadCatch m) => m a -> m (Maybe a)
 forgivingAbsence f = catchIf isDoesNotExistError
   (Just `liftM` f)
   (const $ return Nothing)
+
+-- | The same as 'forgivingAbsence', but ignores result.
+
+forgivingAbsence' :: (MonadIO m, MonadCatch m) => m a -> m ()
+forgivingAbsence' = void . forgivingAbsence
 
 ----------------------------------------------------------------------------
 -- Permissions

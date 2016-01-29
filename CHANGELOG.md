@@ -7,6 +7,8 @@
 * Added closed type family `RelPath`, `makeRelative`, and
   `makeRelativeToCurrentDir` functions.
 
+* Fixed signature of `getAppUserDataDir`.
+
 ## Path IO 0.2.0
 
 * Added functions from `temporary`: `withTempFile`, `withTempDir`,

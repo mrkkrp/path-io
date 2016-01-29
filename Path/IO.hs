@@ -483,7 +483,7 @@ getHomeDir = liftIO D.getHomeDirectory >>= parseAbsDir
 --   found.
 
 getAppUserDataDir :: (MonadIO m, MonadThrow m)
-  => Path File Dir     -- ^ A relative path that is appended to the path
+  => Path Rel Dir      -- ^ A relative path that is appended to the path
   -> m (Path Abs Dir)
 getAppUserDataDir = (>>= parseAbsDir) . liftD D.getAppUserDataDirectory
 

@@ -1,3 +1,9 @@
+## Path IO 0.3.0
+
+* Added `forgivingAbsence`, `resolveFile`, and `resolveDir` functions, so
+  the package now provides all functionality that `Path.IO` module in Stack
+  has.
+
 ## Path IO 0.2.0
 
 * Added functions from `temporary`: `withTempFile`, `withTempDir`,

@@ -40,7 +40,9 @@ module Path.IO
   , RelPath
   , AnyPath (..)
   , resolveFile
+  , resolveFile'
   , resolveDir
+  , resolveDir'
     -- * Actions on files
   , removeFile
   , renameFile
@@ -627,20 +629,34 @@ instance AnyPath (Path b Dir) where
 -- resulting file does not exist and thus its path cannot be canonicalized.
 
 resolveFile :: (MonadIO m, MonadThrow m)
-  => Path Abs Dir
-  -> FilePath
+  => Path Abs Dir      -- ^ Base directory
+  -> FilePath          -- ^ Path to resolve
   -> m (Path Abs File)
 resolveFile b p = f (toFilePath b F.</> p) >>= parseAbsFile
   where f = liftIO . D.canonicalizePath
 
+-- | The same as 'resolveFile', but uses current working directory.
+
+resolveFile' :: (MonadIO m, MonadThrow m)
+  => FilePath          -- ^ Path to resolve
+  -> m (Path Abs File)
+resolveFile' p = getCurrentDir >>= flip resolveFile p
+
 -- | The same as 'resolveFile', but for directories.
 
 resolveDir :: (MonadIO m, MonadThrow m)
-  => Path Abs Dir
-  -> FilePath
+  => Path Abs Dir      -- ^ Base directory
+  -> FilePath          -- ^ Path to resolve
   -> m (Path Abs Dir)
 resolveDir b p = f (toFilePath b F.</> p) >>= parseAbsDir
   where f = liftIO . D.canonicalizePath
+
+-- | The same as 'resolveDir', but uses current working directory.
+
+resolveDir' :: (MonadIO m, MonadThrow m)
+  => FilePath          -- ^ Path to resolve
+  -> m (Path Abs Dir)
+resolveDir' p = getCurrentDir >>= flip resolveDir p
 
 ----------------------------------------------------------------------------
 -- Actions on files

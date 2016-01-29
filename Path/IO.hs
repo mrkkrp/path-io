@@ -947,12 +947,14 @@ isLocationOccupied path = do
   dir  <- liftIO (D.doesDirectoryExist fp)
   return (file || dir)
 
--- | Utility function for a common pattern of ignoring “does-not-exist”
--- errors.
+-- | If argument of the function throws a
+-- 'System.IO.Error.doesNotExistErrorType', 'Nothing' is returned (other
+-- exceptions propagate). Otherwise the result is returned inside a 'Just'.
 
-forgivingAbsence :: (MonadIO m, MonadCatch m) => m () -> m ()
-forgivingAbsence f = catch f $ \e ->
-  unless (isDoesNotExistError e) (throwM e)
+forgivingAbsence :: (MonadIO m, MonadCatch m) => m a -> m (Maybe a)
+forgivingAbsence f = catchIf isDoesNotExistError
+  (Just `liftM` f)
+  (const $ return Nothing)
 
 ----------------------------------------------------------------------------
 -- Permissions

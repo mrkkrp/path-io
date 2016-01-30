@@ -960,7 +960,7 @@ forgivingAbsence f = catchIf isDoesNotExistError
 -- | The same as 'forgivingAbsence', but ignores result.
 
 forgivingAbsence' :: (MonadIO m, MonadCatch m) => m a -> m ()
-forgivingAbsence' = void . forgivingAbsence
+forgivingAbsence' = liftM (const ()) . forgivingAbsence
 
 ----------------------------------------------------------------------------
 -- Permissions

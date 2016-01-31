@@ -1,9 +1,10 @@
 ## Path IO 0.3.1
 
-* Introduced synonym for `forgivingAbsence'` — `ignoringAbsence`. The name
-  is deprecated now, but it's still there.
+* Introduced synonym for `forgivingAbsence'` —
+  `ignoringAbsence`. `forgivingAbsence'` is deprecated now, but it's still
+  there.
 
-* Add a handy shortcut `ensureDir` that is defined as
+* Added a handy shortcut `ensureDir` that is defined as
   `ensureDir = createDirIfMissing True`.
 
 * Made `getHomeDir` and `getTempDir` more robust when they are influenced by

@@ -20,6 +20,7 @@ module Path.IO
   ( -- * Actions on directories
     createDir
   , createDirIfMissing
+  , ensureDir
   , removeDir
   , removeDirRecur
   , renameDir
@@ -157,6 +158,14 @@ createDirIfMissing :: MonadIO m
   -> Path b Dir        -- ^ The path to the directory you want to make
   -> m ()
 createDirIfMissing p = liftD (D.createDirectoryIfMissing p)
+
+-- | Ensure that directory exists creating it and its parent directories if
+-- necessary. This is just a handy shortcut:
+--
+-- > ensureDir = createDirIfMissing True
+
+ensureDir :: MonadIO m => Path b Dir -> m ()
+ensureDir = createDirIfMissing True
 
 -- | @'removeDir' dir@ removes an existing directory @dir@. The
 -- implementation may specify additional constraints which must be satisfied

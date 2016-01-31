@@ -3,6 +3,9 @@
 * Introduced synonym for `forgivingAbsence'` — `ignoringAbsence`. The name
   is deprecated now, but it's still there.
 
+* Add a handy shortcut `ensureDir` that is defined as
+  `ensureDir = createDirIfMissing True`.
+
 ## Path IO 0.3.0
 
 * Added `forgivingAbsence`, `resolveFile`, and `resolveDir` functions, so

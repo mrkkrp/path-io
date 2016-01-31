@@ -6,6 +6,9 @@
 * Add a handy shortcut `ensureDir` that is defined as
   `ensureDir = createDirIfMissing True`.
 
+* Made `getHomeDir` and `getTempDir` more robust when they are influenced by
+  values of environment variables.
+
 ## Path IO 0.3.0
 
 * Added `forgivingAbsence`, `resolveFile`, and `resolveDir` functions, so

@@ -466,7 +466,7 @@ withCurrentDir dir action =
 -- cannot be found.
 
 getHomeDir :: (MonadIO m, MonadThrow m) => m (Path Abs Dir)
-getHomeDir = liftIO D.getHomeDirectory >>= parseAbsDir
+getHomeDir = liftIO D.getHomeDirectory >>= resolveDir'
 
 -- | Obtain the path to a special directory for storing user-specific
 -- application data (traditional Unix location).
@@ -543,10 +543,12 @@ getUserDocsDir = liftIO D.getUserDocumentsDirectory >>= parseAbsDir
 -- * 'UnsupportedOperation'
 -- The operating system has no notion of temporary directory.
 --
--- The function doesn't verify whether the path exists.
+-- * 'isDoesNotExistError'
+-- The temporary directory for the current user does not exist, or
+-- cannot be found.
 
 getTempDir :: (MonadIO m, MonadThrow m) => m (Path Abs Dir)
-getTempDir = liftIO D.getTemporaryDirectory >>= parseAbsDir
+getTempDir = liftIO D.getTemporaryDirectory >>= resolveDir'
 
 ----------------------------------------------------------------------------
 -- Path transformation

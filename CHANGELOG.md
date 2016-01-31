@@ -1,3 +1,8 @@
+## Path IO 0.3.1
+
+* Introduced synonym for `forgivingAbsence'` — `ignoringAbsence`. The name
+  is deprecated now, but it's still there.
+
 ## Path IO 0.3.0
 
 * Added `forgivingAbsence`, `resolveFile`, and `resolveDir` functions, so

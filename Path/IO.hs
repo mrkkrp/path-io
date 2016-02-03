@@ -318,8 +318,7 @@ listDirRecur :: (MonadIO m, MonadThrow m)
   => Path b Dir        -- ^ Directory to list
   -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
 listDirRecur path = do
-  bpath <- makeAbsolute path
-  items <- listDir bpath
+  items <- listDir path
   foldl' mappend items `liftM` mapM listDirRecur (fst items)
 
 -- | Copy directory recursively. This is not smart about symbolic links, but

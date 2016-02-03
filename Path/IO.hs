@@ -493,9 +493,9 @@ getHomeDir = liftIO D.getHomeDirectory >>= resolveDir'
 --   found.
 
 getAppUserDataDir :: (MonadIO m, MonadThrow m)
-  => Path Rel Dir      -- ^ A relative path that is appended to the path
+  => String            -- ^ Name of application (used in path construction)
   -> m (Path Abs Dir)
-getAppUserDataDir = (>>= parseAbsDir) . liftD D.getAppUserDataDirectory
+getAppUserDataDir = (>>= parseAbsDir) . liftIO . D.getAppUserDataDirectory
 
 -- | Returns the current user's document directory.
 --

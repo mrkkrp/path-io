@@ -1,3 +1,8 @@
+## Path IO 0.3.2
+
+* Changed signature of `getAppUserDataDir`, so it takes `String` as the
+  first argument.
+
 ## Path IO 0.3.1
 
 * Introduced synonym for `forgivingAbsence'` —

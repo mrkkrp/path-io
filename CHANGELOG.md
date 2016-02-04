@@ -3,6 +3,8 @@
 * Changed signature of `getAppUserDataDir`, so it takes `String` as the
   first argument.
 
+* Removed deprecated `forgivingAbsence'` function.
+
 ## Path IO 0.3.1
 
 * Introduced synonym for `forgivingAbsence'` —

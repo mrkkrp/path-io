@@ -66,7 +66,6 @@ module Path.IO
   , isLocationOccupied
   , forgivingAbsence
   , ignoringAbsence
-  , forgivingAbsence'
     -- * Permissions
   , D.Permissions
   , D.emptyPermissions
@@ -972,13 +971,6 @@ forgivingAbsence f = catchIf isDoesNotExistError
 
 ignoringAbsence :: (MonadIO m, MonadCatch m) => m a -> m ()
 ignoringAbsence = liftM (const ()) . forgivingAbsence
-
--- | A synonym for 'ignoringAbsence'.
-
-{-# DEPRECATED forgivingAbsence' "Use 'ignoringAbsence' instead." #-}
-
-forgivingAbsence' :: (MonadIO m, MonadCatch m) => m a -> m ()
-forgivingAbsence' = ignoringAbsence
 
 ----------------------------------------------------------------------------
 -- Permissions

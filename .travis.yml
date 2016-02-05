@@ -25,13 +25,23 @@ install:
  - cabal --version
  - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
  - travis_retry cabal update
- - cabal install --only-dependencies
+ - cabal install --only-dependencies --enable-tests
 
 script:
- - cabal configure -f dev
+ - case "$CABALVER" in
+    "1.18") cabal configure --enable-tests --enable-library-coverage -v2 -f dev ;;
+    *)      cabal configure --enable-tests --enable-coverage -v2 -f dev ;;
+   esac
  - cabal build
  - cabal test --show-details=always
  - cabal sdist
+
+after_script:
+ - cabal install hpc-coveralls
+ - export PATH=~/.cabal/bin:$PATH
+ - hpc-coveralls --coverage-mode=StrictlyFullLines
+                 --exclude-dir=tests
+                 tests
 
 notifications:
   email: false

@@ -30,17 +30,27 @@
 -- ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 -- POSSIBILITY OF SUCH DAMAGE.
 
+{-# LANGUAGE CPP             #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 module Main (main) where
 
+import Control.Monad
+import Data.List (sort)
 import Path
 import Path.IO
 import Test.Hspec
 
+#if !MIN_VERSION_base(4,8,0)
+import Control.Applicative ((<$>))
+#endif
+
 main :: IO ()
 main = hspec . around withSandbox $ do
-  describe "listDir"        listDirSpec
-  describe "listDirRecur"   listDirRecurSpec
-  describe "copyDirRecur"   copyDirRecurSpec
+  beforeWith populatedDir $ do
+    describe "listDir"      listDirSpec
+    describe "listDirRecur" listDirRecurSpec
+    describe "copyDirRecur" copyDirRecurSpec
   describe "getCurrentDir"  getCurrentDirSpec
   describe "setCurrentDir"  setCurrentDirSpec
   describe "withCurrentDir" withCurrentDirSpec
@@ -48,13 +58,20 @@ main = hspec . around withSandbox $ do
   describe "getTempDir"     getTempDirSpec
 
 listDirSpec :: SpecWith (Path Abs Dir)
-listDirSpec = it "FIXME" (const pending)
+listDirSpec = it "lists directory" $ \dir ->
+  getDirStructure listDir dir `shouldReturn` populatedDirTop
 
 listDirRecurSpec :: SpecWith (Path Abs Dir)
-listDirRecurSpec = it "FIXME" (const pending)
+listDirRecurSpec = it "lists directory recursively" $ \dir ->
+  getDirStructure listDirRecur dir `shouldReturn` populatedDirStructure
 
 copyDirRecurSpec :: SpecWith (Path Abs Dir)
-copyDirRecurSpec = it "FIXME" (const pending)
+copyDirRecurSpec = it "copies directory" $ \src -> do
+  let dest = parent src </> $(mkRelDir "copied-dir")
+  copyDirRecur src dest
+  old <- getDirStructure listDirRecur src
+  new <- getDirStructure listDirRecur dest
+  old `shouldBe` new
 
 getCurrentDirSpec :: SpecWith (Path Abs Dir)
 getCurrentDirSpec = it "FIXME" (const pending)
@@ -80,4 +97,61 @@ getTempDirSpec = it "FIXME" (const pending)
 -- case finishes.
 
 withSandbox :: ActionWith (Path Abs Dir) -> IO ()
-withSandbox = withSystemTempDir "plan-b-sandbox"
+withSandbox = withSystemTempDir "path-io-sandbox"
+
+-- | Create directory and some sub-directories and files in it. Return path
+-- to that directory.
+--
+-- Created objects are described in 'populatedDirStructure'.
+
+populatedDir :: Path Abs Dir -> IO (Path Abs Dir)
+populatedDir root = do
+  let (dirs, files) = populatedDirStructure
+      pdir          = root </> $(mkRelDir "pdir")
+      withinSandbox = (pdir </>)
+  ensureDir pdir
+  forM_ dirs (ensureDir . withinSandbox)
+  forM_ files $ (`writeFile` "") . toFilePath . withinSandbox
+  return pdir
+
+-- | Get inner structure of a directory. Items are sorted, so it's easier to
+-- compare results.
+
+getDirStructure
+  :: (Path Abs Dir -> IO ([Path Abs Dir], [Path Abs File]))
+     -- ^ Which function to use for scanning
+  -> Path Abs Dir
+     -- ^ Path to directory to scan
+  -> IO ([Path Rel Dir], [Path Rel File])
+getDirStructure f path = do
+  (dirs, files) <- f path
+  rdirs  <- sort <$> mapM (makeRelative path) dirs
+  rfiles <- sort <$> mapM (makeRelative path) files
+  return (rdirs, rfiles)
+
+-- | Structure of directory created by the 'populatedDir' function. Please
+-- keep it sorted.
+
+populatedDirStructure :: ([Path Rel Dir], [Path Rel File])
+populatedDirStructure =
+  ( [ $(mkRelDir "a")
+    , $(mkRelDir "b")
+    , $(mkRelDir "b/c")
+    ]
+  , [ $(mkRelFile "b/c/three.txt")
+    , $(mkRelFile "b/two.txt")
+    , $(mkRelFile "one.txt")
+    ]
+  )
+
+-- | Top-level structure of populated directory as it should be scanned by
+-- the 'listDir' function.
+
+populatedDirTop :: ([Path Rel Dir], [Path Rel File])
+populatedDirTop =
+  ( [ $(mkRelDir "a")
+    , $(mkRelDir "b")
+    ]
+  , [ $(mkRelFile "one.txt")
+    ]
+  )

@@ -36,12 +36,16 @@
 module Main (main) where
 
 import Control.Monad
+import Control.Monad.Catch
 import Data.List (sort)
 import Path
 import Path.IO
 import Test.Hspec
+import System.Environment
 
-#if !MIN_VERSION_base(4,8,0)
+#if MIN_VERSION_base(4,8,0)
+import System.IO.Error
+#else
 import Control.Applicative ((<$>))
 #endif
 
@@ -74,19 +78,53 @@ copyDirRecurSpec = it "copies directory" $ \src -> do
   old `shouldBe` new
 
 getCurrentDirSpec :: SpecWith (Path Abs Dir)
-getCurrentDirSpec = it "FIXME" (const pending)
+getCurrentDirSpec = it "returns current dir" $ \dir ->
+  getCurrentDir `shouldNotReturn` dir
 
 setCurrentDirSpec :: SpecWith (Path Abs Dir)
-setCurrentDirSpec = it "FIXME" (const pending)
+setCurrentDirSpec = it "sets current dir" $ \dir -> do
+  wdir <- getCurrentDir
+  setCurrentDir dir
+  new  <- getCurrentDir
+  setCurrentDir wdir
+  new `shouldBe` dir
 
 withCurrentDirSpec :: SpecWith (Path Abs Dir)
-withCurrentDirSpec = it "FIXME" (const pending)
+withCurrentDirSpec = it "temporarily modifies current dir" $ \dir -> do
+  withCurrentDir dir $
+    getCurrentDir `shouldReturn` dir
+  getCurrentDir `shouldNotReturn` dir
 
 getHomeDirSpec :: SpecWith (Path Abs Dir)
-getHomeDirSpec = it "FIXME" (const pending)
+getHomeDirSpec = do
+  it "home dir is influenced by environment variable HOME" $ \dir ->
+    bracket (getEnv evar) (setEnv evar) $ \_ -> do
+      setEnv evar (toFilePath dir)
+      getHomeDir `shouldReturn` dir
+#if MIN_VERSION_base(4,8,0)
+  context "when environment variable HOME contains nonsense" $
+    it "throws the right exception" $ \dir ->
+      bracket (getEnv evar) (setEnv evar) $ \_ -> do
+        setEnv evar (toFilePath $ dir </> $(mkRelDir "foo"))
+        getHomeDir `shouldThrow` isDoesNotExistError
+#endif
+  where evar = "HOME"
 
 getTempDirSpec :: SpecWith (Path Abs Dir)
-getTempDirSpec = it "FIXME" (const pending)
+getTempDirSpec = do
+  it "temp dir is influenced by environment variable TMPDIR" $ \dir ->
+    flip finally (unsetEnv evar) $  do
+      setEnv evar (toFilePath dir)
+      getTempDir `shouldReturn` dir
+      unsetEnv evar
+#if MIN_VERSION_base(4,8,0)
+  context "when environment variable TMPDIR contains nonsense" $
+    it "throws the right exception" $ \dir ->
+      flip finally (unsetEnv evar) $ do
+        setEnv evar (toFilePath $ dir </> $(mkRelDir "foo"))
+        getTempDir `shouldThrow` isDoesNotExistError
+#endif
+  where evar = "TMPDIR"
 
 ----------------------------------------------------------------------------
 -- Helpers

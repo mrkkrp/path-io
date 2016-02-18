@@ -76,6 +76,7 @@ test-suite tests
   else
     ghc-options:      -O2 -Wall
   build-depends:      base         >= 4.7 && < 5
+                    , exceptions   >= 0.8
                     , hspec        >= 2.0
                     , path         >= 0.5
                     , path-io      >= 0.3.1

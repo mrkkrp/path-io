@@ -1,9 +1,11 @@
-## Path IO 0.3.2
+## Path IO 1.0.0
 
 * Changed signature of `getAppUserDataDir`, so it takes `String` as the
   first argument.
 
 * Removed deprecated `forgivingAbsence'` function.
+
+* Added some tests.
 
 ## Path IO 0.3.1
 

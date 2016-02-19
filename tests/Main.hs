@@ -55,6 +55,7 @@ main = hspec . around withSandbox $ do
     describe "listDir"      listDirSpec
     describe "listDirRecur" listDirRecurSpec
     describe "copyDirRecur" copyDirRecurSpec
+    describe "findFile"     findFileSpec
   describe "getCurrentDir"  getCurrentDirSpec
   describe "setCurrentDir"  setCurrentDirSpec
   describe "withCurrentDir" withCurrentDirSpec
@@ -76,6 +77,12 @@ copyDirRecurSpec = it "copies directory" $ \src -> do
   old <- getDirStructure listDirRecur src
   new <- getDirStructure listDirRecur dest
   old `shouldBe` new
+
+findFileSpec :: SpecWith (Path Abs Dir)
+findFileSpec = it "finds a file lazily" $ \dir -> do
+  let [relFile] = snd populatedDirTop
+  found <- findFile (dir : undefined) relFile
+  found `shouldBe` (Just (dir </> relFile))
 
 getCurrentDirSpec :: SpecWith (Path Abs Dir)
 getCurrentDirSpec = it "returns current dir" $ \dir ->

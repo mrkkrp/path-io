@@ -95,7 +95,6 @@ import Control.Monad.IO.Class (MonadIO (..))
 import Data.Either (lefts, rights)
 import Data.Foldable (foldl')
 import Data.List ((\\))
-import Data.Maybe (listToMaybe)
 import Data.Time (UTCTime)
 import Path
 import System.IO (Handle)
@@ -790,7 +789,13 @@ findFile :: (MonadIO m, MonadThrow m)
   => [Path b Dir]      -- ^ Set of directories to search in
   -> Path Rel File     -- ^ Filename of interest
   -> m (Maybe (Path Abs File)) -- ^ Absolute path to file (if found)
-findFile dirs file = listToMaybe `liftM` findFiles dirs file
+findFile [] _ = return Nothing
+findFile (d:ds) file = do
+  bfile <- (</> file) `liftM` makeAbsolute d
+  exist <- doesFileExist bfile
+  if exist
+    then return (Just bfile)
+    else findFile ds file
 
 -- | Search through the given set of directories for the given file and
 -- return a list of paths where the given file exists.

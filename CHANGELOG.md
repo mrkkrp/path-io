@@ -5,6 +5,8 @@
 
 * Removed deprecated `forgivingAbsence'` function.
 
+* Made `findFile` lazier, it stops searching as soon as a file is found.
+
 * Added some tests.
 
 ## Path IO 0.3.1

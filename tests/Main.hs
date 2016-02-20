@@ -80,9 +80,9 @@ copyDirRecurSpec = it "copies directory" $ \src -> do
 
 findFileSpec :: SpecWith (Path Abs Dir)
 findFileSpec = it "finds a file lazily" $ \dir -> do
-  let [relFile] = snd populatedDirTop
+  let relFile = head (snd populatedDirTop)
   found <- findFile (dir : undefined) relFile
-  found `shouldBe` (Just (dir </> relFile))
+  found `shouldBe` Just (dir </> relFile)
 
 getCurrentDirSpec :: SpecWith (Path Abs Dir)
 getCurrentDirSpec = it "returns current dir" $ \dir ->

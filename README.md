@@ -3,6 +3,7 @@
 [![License BSD3](https://img.shields.io/badge/license-BSD3-brightgreen.svg)](http://opensource.org/licenses/BSD-3-Clause)
 [![Hackage](https://img.shields.io/hackage/v/path-io.svg?style=flat)](https://hackage.haskell.org/package/path-io)
 [![Stackage Nightly](http://stackage.org/package/path-io/badge/nightly)](http://stackage.org/nightly/package/path-io)
+[![Stackage LTS](http://stackage.org/package/path-io/badge/lts)](http://stackage.org/lts/package/path-io)
 [![Build Status](https://travis-ci.org/mrkkrp/path-io.svg?branch=master)](https://travis-ci.org/mrkkrp/path-io)
 [![Coverage Status](https://coveralls.io/repos/mrkkrp/path-io/badge.svg?branch=master&service=github)](https://coveralls.io/github/mrkkrp/path-io?branch=master)
 

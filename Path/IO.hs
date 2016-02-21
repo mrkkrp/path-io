@@ -540,9 +540,7 @@ getUserDocsDir = liftIO D.getUserDocumentsDirectory >>= parseAbsDir
 -- * 'UnsupportedOperation'
 -- The operating system has no notion of temporary directory.
 --
--- * 'isDoesNotExistError'
--- The temporary directory for the current user does not exist, or
--- cannot be found.
+-- The function doesn't verify whether the path exists.
 
 getTempDir :: (MonadIO m, MonadThrow m) => m (Path Abs Dir)
 getTempDir = liftIO D.getTemporaryDirectory >>= resolveDir'
@@ -594,7 +592,11 @@ class AnyPath path where
   -- Similar to 'normalise', an empty path is equivalent to the current
   -- directory.
   --
-  -- /Known bug(s)/: on Windows, the function does not resolve symbolic links.
+  -- /Known bug(s)/: on Windows, the function does not resolve symbolic
+  -- links.
+  --
+  -- Please note that before version 1.2.3.0 of @directory@ package, this
+  -- function had unpredictable behavior on non-existent paths.
 
   canonicalizePath :: (MonadIO m, MonadThrow m)
     => path -> m (AbsPath path)
@@ -634,9 +636,7 @@ instance AnyPath (Path b Dir) where
   makeRelativeToCurrentDir p = getCurrentDir >>= flip makeRelative p
 
 -- | Append stringly-typed path to an absolute path and then canonicalize
--- it. This can throw the same exceptions as 'canonicalizePath'. In
--- particular, 'System.IO.Error.doesNotExistErrorType' is thrown if
--- resulting file does not exist and thus its path cannot be canonicalized.
+-- it.
 
 resolveFile :: (MonadIO m, MonadThrow m)
   => Path Abs Dir      -- ^ Base directory

@@ -43,9 +43,7 @@ import Path.IO
 import Test.Hspec
 import System.Environment
 
-#if MIN_VERSION_base(4,8,0)
-import System.IO.Error
-#else
+#if !MIN_VERSION_base(4,8,0)
 import Control.Applicative ((<$>))
 #endif
 
@@ -103,34 +101,20 @@ withCurrentDirSpec = it "temporarily modifies current dir" $ \dir -> do
   getCurrentDir `shouldNotReturn` dir
 
 getHomeDirSpec :: SpecWith (Path Abs Dir)
-getHomeDirSpec = do
+getHomeDirSpec =
   it "home dir is influenced by environment variable HOME" $ \dir ->
     bracket (getEnv evar) (setEnv evar) $ \_ -> do
       setEnv evar (toFilePath dir)
       getHomeDir `shouldReturn` dir
-#if MIN_VERSION_base(4,8,0)
-  context "when environment variable HOME contains nonsense" $
-    it "throws the right exception" $ \dir ->
-      bracket (getEnv evar) (setEnv evar) $ \_ -> do
-        setEnv evar (toFilePath $ dir </> $(mkRelDir "foo"))
-        getHomeDir `shouldThrow` isDoesNotExistError
-#endif
   where evar = "HOME"
 
 getTempDirSpec :: SpecWith (Path Abs Dir)
-getTempDirSpec = do
+getTempDirSpec =
   it "temp dir is influenced by environment variable TMPDIR" $ \dir ->
     flip finally (unsetEnv evar) $  do
       setEnv evar (toFilePath dir)
       getTempDir `shouldReturn` dir
       unsetEnv evar
-#if MIN_VERSION_base(4,8,0)
-  context "when environment variable TMPDIR contains nonsense" $
-    it "throws the right exception" $ \dir ->
-      flip finally (unsetEnv evar) $ do
-        setEnv evar (toFilePath $ dir </> $(mkRelDir "foo"))
-        getTempDir `shouldThrow` isDoesNotExistError
-#endif
   where evar = "TMPDIR"
 
 ----------------------------------------------------------------------------

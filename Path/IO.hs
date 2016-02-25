@@ -344,7 +344,7 @@ copyDir :: (MonadIO m, MonadCatch m)
   -> Path Abs Dir      -- ^ Destination
   -> m ()
 copyDir src dest = do
-  createDirIfMissing True dest
+  ensureDir dest
   ignoringIOErrors (copyPermissions src dest)
 
 -- | A helper for 'copyDirRecur' that replaces given path prefix with

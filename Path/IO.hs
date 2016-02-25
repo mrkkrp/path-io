@@ -334,6 +334,7 @@ copyDirRecur src dest = do
   bdest <- makeAbsolute dest
   (dirs, files) <- listDirRecur bsrc
   ensureDir bdest
+  ignoringIOErrors (copyPermissions bsrc bdest)
   mapM (swapParent bsrc bdest) dirs  >>= zipWithM_ copyDir  dirs
   mapM (swapParent bsrc bdest) files >>= zipWithM_ copyFile files
 

@@ -3,6 +3,9 @@
 * Fixed bug in `copyDirRecur` for non-existing destination paths when
   directory to copy does not contain sub-directories.
 
+* Made `copyDirRecur` try to copy permissions for destination directory too
+  (previously it only tried to copy them for sub-directories).
+
 ## Path IO 1.0.0
 
 * Changed signature of `getAppUserDataDir`, so it takes `String` as the

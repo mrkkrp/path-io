@@ -333,6 +333,7 @@ copyDirRecur src dest = do
   bsrc  <- makeAbsolute src
   bdest <- makeAbsolute dest
   (dirs, files) <- listDirRecur bsrc
+  ensureDir bdest
   mapM (swapParent bsrc bdest) dirs  >>= zipWithM_ copyDir  dirs
   mapM (swapParent bsrc bdest) files >>= zipWithM_ copyFile files
 

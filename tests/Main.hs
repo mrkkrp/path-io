@@ -53,6 +53,7 @@ main = hspec . around withSandbox $ do
     describe "listDir"      listDirSpec
     describe "listDirRecur" listDirRecurSpec
     describe "copyDirRecur" copyDirRecurSpec
+    describe "copyDirRecur'" copyDirRecur'Spec
     describe "findFile"     findFileSpec
   describe "getCurrentDir"  getCurrentDirSpec
   describe "setCurrentDir"  setCurrentDirSpec
@@ -69,12 +70,37 @@ listDirRecurSpec = it "lists directory recursively" $ \dir ->
   getDirStructure listDirRecur dir `shouldReturn` populatedDirStructure
 
 copyDirRecurSpec :: SpecWith (Path Abs Dir)
-copyDirRecurSpec = it "copies directory" $ \src -> do
-  let dest = parent src </> $(mkRelDir "copied-dir")
-  copyDirRecur src dest
-  old <- getDirStructure listDirRecur src
-  new <- getDirStructure listDirRecur dest
-  old `shouldBe` new
+copyDirRecurSpec = do
+  context "when source directory is editable" $
+    it "copies directory" $ \src -> do
+    let dest = parent src </> $(mkRelDir "copied-dir")
+    copyDirRecur src dest
+    old <- getDirStructure listDirRecur src
+    new <- getDirStructure listDirRecur dest
+    old `shouldBe` new
+  context "when source directory is read-only" $
+    it "copies directory just as well (preserving permissions)" $ \src -> do
+    let dest = parent src </> $(mkRelDir "copied-dir")
+    srcPermissions <- setOwnerWritable False <$> getPermissions src
+    setPermissions src srcPermissions
+    copyDirRecur src dest
+    old <- getDirStructure listDirRecur src
+    new <- getDirStructure listDirRecur dest
+    old `shouldBe` new
+    getPermissions dest `shouldReturn` srcPermissions
+
+copyDirRecur'Spec :: SpecWith (Path Abs Dir)
+copyDirRecur'Spec =
+  context "when source directory is read-only" $
+    it "copies directory but now it's editable" $ \src -> do
+    let dest = parent src </> $(mkRelDir "copied-dir")
+    srcPermissions <- setOwnerWritable False <$> getPermissions src
+    setPermissions src srcPermissions
+    copyDirRecur' src dest
+    old <- getDirStructure listDirRecur src
+    new <- getDirStructure listDirRecur dest
+    old `shouldBe` new
+    getPermissions dest `shouldReturn` srcPermissions { writable = True }
 
 findFileSpec :: SpecWith (Path Abs Dir)
 findFileSpec = it "finds a file lazily" $ \dir -> do

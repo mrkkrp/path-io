@@ -27,6 +27,7 @@ module Path.IO
   , listDir
   , listDirRecur
   , copyDirRecur
+  , copyDirRecur'
     -- ** Current working directory
   , getCurrentDir
   , setCurrentDir
@@ -329,35 +330,44 @@ copyDirRecur :: (MonadIO m, MonadCatch m)
   => Path b0 Dir       -- ^ Source
   -> Path b1 Dir       -- ^ Destination
   -> m ()
-copyDirRecur src dest = do
+copyDirRecur = copyDirRecurGen True
+
+-- | The same as 'copyDirRecur', but it does not preserve directory
+-- permissions. This may be useful, for example, if directory you want to
+-- copy is “read-only”, but you want your copy to editable.
+
+copyDirRecur' :: (MonadIO m, MonadCatch m)
+  => Path b0 Dir       -- ^ Source
+  -> Path b1 Dir       -- ^ Destination
+  -> m ()
+copyDirRecur' = copyDirRecurGen False
+
+-- | Generic version of 'copyDirRecur'. The first argument controls whether
+-- to preserve directory permissions or not.
+
+copyDirRecurGen :: (MonadIO m, MonadCatch m)
+  => Bool              -- ^ Should we preserve directory permissions?
+  -> Path b0 Dir       -- ^ Source
+  -> Path b1 Dir       -- ^ Destination
+  -> m ()
+copyDirRecurGen p src dest = do
   bsrc  <- makeAbsolute src
   bdest <- makeAbsolute dest
   (dirs, files) <- listDirRecur bsrc
+  let swapParent :: MonadThrow m
+        => Path Abs Dir
+        -> Path Abs Dir
+        -> Path Abs t
+        -> m (Path Abs t)
+      swapParent old new path = (new </>) `liftM` stripDir old path
+  tdirs  <- mapM (swapParent bsrc bdest) dirs
+  tfiles <- mapM (swapParent bsrc bdest) files
   ensureDir bdest
-  ignoringIOErrors (copyPermissions bsrc bdest)
-  mapM (swapParent bsrc bdest) dirs  >>= zipWithM_ copyDir  dirs
-  mapM (swapParent bsrc bdest) files >>= zipWithM_ copyFile files
-
--- | A helper for 'copyDirRecur', copies directory preserving permissions
--- when possible. It /does not/ copies directory contents.
-
-copyDir :: (MonadIO m, MonadCatch m)
-  => Path Abs Dir      -- ^ Source
-  -> Path Abs Dir      -- ^ Destination
-  -> m ()
-copyDir src dest = do
-  ensureDir dest
-  ignoringIOErrors (copyPermissions src dest)
-
--- | A helper for 'copyDirRecur' that replaces given path prefix with
--- another one.
-
-swapParent :: MonadThrow m
-  => Path Abs Dir      -- ^ Original parent
-  -> Path Abs Dir      -- ^ New parent
-  -> Path Abs t        -- ^ Path to transform
-  -> m (Path Abs t)
-swapParent old new path = (new </>) `liftM` stripDir old path
+  mapM_ ensureDir tdirs
+  zipWithM_ copyFile files tfiles
+  when p $ do
+    ignoringIOErrors (copyPermissions bsrc bdest)
+    zipWithM_ (\s d -> ignoringIOErrors $ copyPermissions s d) dirs tdirs
 
 ----------------------------------------------------------------------------
 -- Current working directory

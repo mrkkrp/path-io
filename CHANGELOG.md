@@ -1,10 +1,10 @@
 ## Path IO 1.1.0
 
-* Fixed bug in `copyDirRecur` when it was unable to full copy read-only
+* Fixed bug in `copyDirRecur` when it was unable to fully copy read-only
   directories.
 
 * Added `copyDirRecur'` function that works just like `copyDirRecur`, but
-  does not preserve permissions.
+  does not preserve directory permissions.
 
 ## Path IO 1.0.1
 

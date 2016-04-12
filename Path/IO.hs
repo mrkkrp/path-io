@@ -334,7 +334,7 @@ copyDirRecur = copyDirRecurGen True
 
 -- | The same as 'copyDirRecur', but it does not preserve directory
 -- permissions. This may be useful, for example, if directory you want to
--- copy is “read-only”, but you want your copy to editable.
+-- copy is “read-only”, but you want your copy to be editable.
 
 copyDirRecur' :: (MonadIO m, MonadCatch m)
   => Path b0 Dir       -- ^ Source

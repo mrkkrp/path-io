@@ -103,7 +103,6 @@ import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
 import Control.Monad.Trans.Writer.Lazy (runWriterT, tell)
 import Data.Either (lefts, rights)
-import Data.Foldable (foldl')
 import Data.List ((\\))
 import Data.Time (UTCTime)
 import Path
@@ -327,9 +326,8 @@ listDir path = do
 listDirRecur :: (MonadIO m, MonadThrow m)
   => Path b Dir        -- ^ Directory to list
   -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
-listDirRecur path = do
-  items <- listDir path
-  foldl' mappend items `liftM` mapM listDirRecur (fst items)
+listDirRecur path = walkDirAll' handler path
+  where handler _ dirs files = return (dirs, files)
 
 -- Recursive directory walk functionality, with a flexible API and avoidance
 -- of loops. Following are some notes on the design.

@@ -24,6 +24,9 @@ module Path.IO
   , removeDir
   , removeDirRecur
   , renameDir
+  , WalkAction(..)
+  , WalkHandler
+  , walkDir
   , listDir
   , listDirRecur
   , copyDirRecur
@@ -93,6 +96,7 @@ where
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class (MonadIO (..))
+import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
 import Data.Either (lefts, rights)
 import Data.Foldable (foldl')
 import Data.List ((\\))
@@ -100,6 +104,8 @@ import Data.Time (UTCTime)
 import Path
 import System.IO (Handle)
 import System.IO.Error (isDoesNotExistError)
+import System.PosixCompat.Files (deviceID, fileID, getFileStatus)
+import qualified Data.Set as Set
 import qualified System.Directory as D
 import qualified System.FilePath  as F
 import qualified System.IO.Temp   as T
@@ -319,6 +325,84 @@ listDirRecur :: (MonadIO m, MonadThrow m)
 listDirRecur path = do
   items <- listDir path
   foldl' mappend items `liftM` mapM listDirRecur (fst items)
+
+-- Recursive directory walk functionality, with a flexible API and avoidance
+-- of loops. Following are some notes on the design.
+--
+-- Callback handler API:
+--
+-- The callback handler interface is designed to be highly flexible. There are
+-- two possible alternative ways to control the traversal:
+-- * In the context of the parent dir, decide which subdirs to descend into.
+-- * In the context of the subdir, decide whether to traverse the subdir or not.
+--
+-- We choose the first approach here since it is more flexible and can achieve
+-- everything that the second one can. The additional benefit with this is that
+-- we have more context to use for the traversal decisions.
+--
+-- Avoiding Traversal Loops:
+--
+-- There can be loops in the path being traversed due to subdirectory symlinks
+-- or filesystem corruptions can cause loops by creating directory hardlinks.
+-- Also, if the filesystem is changing while we are traversing then we might
+-- be going in loops due to the changes.
+--
+-- We record the path we are coming from to detect the loops. If we end up
+-- traversing the same directory again we are in a loop. We use device id and
+-- inode number pair instead of recording paths so that we can detect even
+-- hardlinking loops.
+
+-- | Action returned by the traversal callback handler. The action decides how
+-- the traversal will proceed further. Note the difference between
+-- @'WalkFinish'@ and @'WalkDescend' []@.
+data WalkAction =
+    WalkFinish                  -- ^ Finish the entire walk
+  | WalkDescend [Path Abs Dir]  -- ^ List of sub-directories to descend
+
+-- | Handler called at each directory node traversed.
+type WalkHandler m a =
+     Path Abs Dir    -- ^ The directory being tarversed
+  -> [Path Abs Dir]  -- ^ Sub-directories of the directory
+  -> [Path Abs File] -- ^ Files in the directory
+  -> m a
+
+-- | Traverse a directory tree, calling the supplied  handler at each directory
+-- node traversed. Detects and silently avoids any traversal loops.
+--
+walkDir
+  :: (MonadIO m, MonadThrow m)
+  => WalkHandler m WalkAction -- ^ Handler called at each directory traversed
+  -> Path b Dir               -- ^ Directory where the traversal begins
+  -> m ()
+walkDir handler topdir = do
+  _ <- makeAbsolute topdir >>= walkAvoidLoop Set.empty
+  return ()
+  where
+    walkAvoidLoop traversed curdir = do
+      mRes <- checkLoop traversed curdir
+      case mRes of
+        Nothing -> return $ Just ()
+        Just traversed' -> walktree traversed' curdir
+
+    -- use Maybe monad to abort any further traversal if any of the
+    -- handler calls returns WalkFinish
+    walktree traversed curdir = do
+      (subdirs, files) <- listDir curdir
+      action <- handler curdir subdirs files
+      case action of
+        WalkFinish -> return Nothing
+        WalkDescend [] -> return $ Just ()
+        WalkDescend dirs -> runMaybeT $
+          mapM_ (MaybeT . (walkAvoidLoop traversed)) dirs
+
+    checkLoop traversed dir = do
+      st <- liftIO $ getFileStatus (toFilePath dir)
+      let ufid = ((deviceID st), (fileID st))
+
+      -- check for loop, have we already traversed this dir?
+      if (Set.member ufid traversed)
+      then return Nothing
+      else return $ Just (Set.insert ufid traversed)
 
 -- | Copy directory recursively. This is not smart about symbolic links, but
 -- tries to preserve permissions when possible. If destination directory

@@ -28,6 +28,7 @@ module Path.IO
   , WalkHandler
   , walkDir
   , walkDir'
+  , walkDirAll
   , listDir
   , listDirRecur
   , copyDirRecur
@@ -426,6 +427,20 @@ walkDir' handler topdir = do
       (act, res) <- lift $ handler dir subdirs files
       tell res
       return act
+
+-- | Similar to 'walkDir' but with a simpler handler which does not control the
+-- traversal, it just walks the entire tree.
+walkDirAll
+  :: (MonadIO m, MonadThrow m)
+  => WalkHandler m ()
+     -- ^ Handler called at each directory traversed
+  -> Path b Dir
+     -- ^ Directory where the traversal begins
+  -> m ()
+walkDirAll handler = walkDir handler'
+  where handler' dir subdirs files = do
+          handler dir subdirs files
+          return (WalkDescend subdirs)
 
 -- | Copy directory recursively. This is not smart about symbolic links, but
 -- tries to preserve permissions when possible. If destination directory

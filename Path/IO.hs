@@ -117,7 +117,7 @@ import qualified System.FilePath  as F
 import qualified System.IO.Temp   as T
 
 #if !MIN_VERSION_base(4,8,0)
-import Data.Monoid (mappend)
+import Data.Monoid (Monoid)
 #endif
 
 ----------------------------------------------------------------------------

@@ -27,6 +27,7 @@ module Path.IO
   , WalkAction(..)
   , WalkHandler
   , walkDir
+  , walkDir'
   , listDir
   , listDirRecur
   , copyDirRecur
@@ -96,7 +97,9 @@ where
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class (MonadIO (..))
+import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
+import Control.Monad.Trans.Writer.Lazy (runWriterT, tell)
 import Data.Either (lefts, rights)
 import Data.Foldable (foldl')
 import Data.List ((\\))
@@ -403,6 +406,26 @@ walkDir handler topdir = do
       if (Set.member ufid traversed)
       then return Nothing
       else return $ Just (Set.insert ufid traversed)
+
+-- | Similar to 'walkDir' but in addition to an action the handler can also
+-- return a 'Monoid' value. All the values returned by handler invocations are
+-- concatenated together and returned.
+walkDir'
+  :: (MonadIO m, MonadThrow m, Monoid o)
+  => WalkHandler m (WalkAction, o)
+     -- ^ Handler called at each directory traversed
+  -> Path b Dir
+     -- ^ Directory where the traversal begins
+  -> m o
+     -- ^ Collected values returned by the handler
+walkDir' handler topdir = do
+  ((), result) <- runWriterT $ walkDir handler' topdir
+  return result
+  where
+    handler' dir subdirs files = do
+      (act, res) <- lift $ handler dir subdirs files
+      tell res
+      return act
 
 -- | Copy directory recursively. This is not smart about symbolic links, but
 -- tries to preserve permissions when possible. If destination directory

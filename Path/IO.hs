@@ -32,6 +32,8 @@ module Path.IO
   , walkDirAll'
   , listDir
   , listDirRecur
+  , listDirRecurWith
+  , listDirRecurWithPruned
   , copyDirRecur
   , copyDirRecur'
     -- ** Current working directory
@@ -326,8 +328,37 @@ listDir path = do
 listDirRecur :: (MonadIO m, MonadThrow m)
   => Path b Dir        -- ^ Directory to list
   -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
-listDirRecur path = walkDirAll' handler path
+listDirRecur = walkDirAll' handler
   where handler _ dirs files = return (dirs, files)
+
+-- | Similar to 'listDirRecur' but can use predicates to select the files and
+-- directories returned.
+listDirRecurWith
+  :: (MonadIO m, MonadThrow m)
+  => (Path Abs Dir -> m Bool)            -- ^ dir match predicate
+  -> (Path Abs File -> m Bool)           -- ^ file match predicate
+  -> Path Abs Dir                        -- ^ top dir to traverse
+  -> m ([Path Abs Dir], [Path Abs File]) -- ^ Matched subdirs and files
+listDirRecurWith dirPred filePred = walkDirAll' handler
+  where handler _ dirs files = do
+          d <- filterM dirPred dirs
+          f <- filterM filePred files
+          return (d, f)
+
+-- | Similar to 'listDirRecurWith' but prunes the matched directories
+-- i.e. does not traverse them.
+listDirRecurWithPruned
+    :: (MonadIO m, MonadThrow m)
+    => (Path Abs Dir -> m Bool)            -- ^ dir match predicate
+    -> (Path Abs File -> m Bool)           -- ^ file match predicate
+    -> Path Abs Dir                        -- ^ top dir to traverse
+    -> m ([Path Abs Dir], [Path Abs File]) -- ^ Matched subdirs and files
+listDirRecurWithPruned dirPred filePred =
+  walkDir' handler
+    where handler _ dirs files = do
+            d <- filterM dirPred dirs
+            f <- filterM filePred files
+            return (WalkDescend (dirs \\ d), (d, f))
 
 -- Recursive directory walk functionality, with a flexible API and avoidance
 -- of loops. Following are some notes on the design.

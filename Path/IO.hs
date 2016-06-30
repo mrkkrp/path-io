@@ -29,6 +29,7 @@ module Path.IO
   , walkDir
   , walkDir'
   , walkDirAll
+  , walkDirAll'
   , listDir
   , listDirRecur
   , copyDirRecur
@@ -365,7 +366,7 @@ data WalkAction =
 
 -- | Handler called at each directory node traversed.
 type WalkHandler m a =
-     Path Abs Dir    -- ^ The directory being tarversed
+     Path Abs Dir    -- ^ The directory being traversed
   -> [Path Abs Dir]  -- ^ Sub-directories of the directory
   -> [Path Abs File] -- ^ Files in the directory
   -> m a
@@ -441,6 +442,20 @@ walkDirAll handler = walkDir handler'
   where handler' dir subdirs files = do
           handler dir subdirs files
           return (WalkDescend subdirs)
+
+-- | Similar to 'walkDirAll' but the handler can return a 'Monoid' value which
+-- is concatenated and returned.
+walkDirAll'
+  :: (MonadIO m, MonadThrow m, Monoid o)
+  => WalkHandler m o
+     -- ^ Handler called at each directory traversed
+  -> Path b Dir
+     -- ^ Directory where the traversal begins
+  -> m o
+walkDirAll' handler = walkDir' handler'
+  where handler' dir subdirs files = do
+          o <- handler dir subdirs files
+          return (WalkDescend subdirs, o)
 
 -- | Copy directory recursively. This is not smart about symbolic links, but
 -- tries to preserve permissions when possible. If destination directory

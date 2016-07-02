@@ -25,11 +25,8 @@ module Path.IO
   , removeDirRecur
   , renameDir
   , WalkAction(..)
-  , WalkHandler
   , walkDir
-  , walkDir'
-  , walkDirAll
-  , walkDirAll'
+  , walkDirAccum
   , listDir
   , listDirRecur
   , listDirRecurWith
@@ -328,33 +325,35 @@ listDir path = do
 listDirRecur :: (MonadIO m, MonadThrow m)
   => Path b Dir        -- ^ Directory to list
   -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
-listDirRecur = walkDirAll' handler
-  where handler _ dirs files = return (dirs, files)
+listDirRecur = walkDirAccum handler
+    where handler _ dirs files = return (WalkDescend dirs, (dirs, files))
 
 -- | Similar to 'listDirRecur' but can use predicates to select the files and
 -- directories returned.
+
 listDirRecurWith
   :: (MonadIO m, MonadThrow m)
-  => (Path Abs Dir -> m Bool)            -- ^ dir match predicate
-  -> (Path Abs File -> m Bool)           -- ^ file match predicate
-  -> Path Abs Dir                        -- ^ top dir to traverse
+  => (Path Abs Dir -> m Bool)            -- ^ Dir match predicate
+  -> (Path Abs File -> m Bool)           -- ^ File match predicate
+  -> Path Abs Dir                        -- ^ Top dir to traverse
   -> m ([Path Abs Dir], [Path Abs File]) -- ^ Matched subdirs and files
-listDirRecurWith dirPred filePred = walkDirAll' handler
+listDirRecurWith dirPred filePred = walkDirAccum handler
   where handler _ dirs files = do
           d <- filterM dirPred dirs
           f <- filterM filePred files
-          return (d, f)
+          return (WalkDescend d, (d, f))
 
 -- | Similar to 'listDirRecurWith' but prunes the matched directories
--- i.e. does not traverse them.
+-- i.e. it returns the matched dirs but does not traverse them.
+
 listDirRecurWithPruned
     :: (MonadIO m, MonadThrow m)
-    => (Path Abs Dir -> m Bool)            -- ^ dir match predicate
-    -> (Path Abs File -> m Bool)           -- ^ file match predicate
-    -> Path Abs Dir                        -- ^ top dir to traverse
+    => (Path Abs Dir -> m Bool)            -- ^ Dir match predicate
+    -> (Path Abs File -> m Bool)           -- ^ File match predicate
+    -> Path Abs Dir                        -- ^ Top dir to traverse
     -> m ([Path Abs Dir], [Path Abs File]) -- ^ Matched subdirs and files
 listDirRecurWithPruned dirPred filePred =
-  walkDir' handler
+  walkDirAccum handler
     where handler _ dirs files = do
             d <- filterM dirPred dirs
             f <- filterM filePred files
@@ -389,24 +388,20 @@ listDirRecurWithPruned dirPred filePred =
 -- | Action returned by the traversal callback handler. The action decides how
 -- the traversal will proceed further. Note the difference between
 -- @'WalkFinish'@ and @'WalkDescend' []@.
+
 data WalkAction =
     WalkFinish                  -- ^ Finish the entire walk
   | WalkDescend [Path Abs Dir]  -- ^ List of sub-directories to descend
 
--- | Handler called at each directory node traversed.
-type WalkHandler m a =
-     Path Abs Dir    -- ^ The directory being traversed
-  -> [Path Abs Dir]  -- ^ Sub-directories of the directory
-  -> [Path Abs File] -- ^ Files in the directory
-  -> m a
-
 -- | Traverse a directory tree, calling the supplied  handler at each directory
 -- node traversed. Detects and silently avoids any traversal loops.
---
+
 walkDir
   :: (MonadIO m, MonadThrow m)
-  => WalkHandler m WalkAction -- ^ Handler called at each directory traversed
-  -> Path b Dir               -- ^ Directory where the traversal begins
+  => (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m WalkAction)
+     -- ^ Handler (@dir -> subdirs -> files -> 'WalkAction'@)
+  -> Path b Dir
+     -- ^ Directory where traversal begins
   -> m ()
 walkDir handler topdir = do
   _ <- makeAbsolute topdir >>= walkAvoidLoop Set.empty
@@ -438,18 +433,19 @@ walkDir handler topdir = do
       then return Nothing
       else return $ Just (Set.insert ufid traversed)
 
--- | Similar to 'walkDir' but in addition to an action the handler can also
--- return a 'Monoid' value. All the values returned by handler invocations are
--- concatenated together and returned.
-walkDir'
+-- | Similar to 'walkDir' but in addition to performing an action the handler
+-- also returns a 'Monoid' value. All the values returned by handler
+-- invocations are accumulated and returned.
+
+walkDirAccum
   :: (MonadIO m, MonadThrow m, Monoid o)
-  => WalkHandler m (WalkAction, o)
-     -- ^ Handler called at each directory traversed
+  => (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m (WalkAction, o))
+     -- ^ Handler (@dir -> subdirs -> files -> ('WalkAction', output)@)
   -> Path b Dir
-     -- ^ Directory where the traversal begins
+     -- ^ Directory where traversal begins
   -> m o
-     -- ^ Collected values returned by the handler
-walkDir' handler topdir = do
+     -- ^ Accumulation of outputs returned by the handler
+walkDirAccum handler topdir = do
   ((), result) <- runWriterT $ walkDir handler' topdir
   return result
   where
@@ -457,34 +453,6 @@ walkDir' handler topdir = do
       (act, res) <- lift $ handler dir subdirs files
       tell res
       return act
-
--- | Similar to 'walkDir' but with a simpler handler which does not control the
--- traversal, it just walks the entire tree.
-walkDirAll
-  :: (MonadIO m, MonadThrow m)
-  => WalkHandler m ()
-     -- ^ Handler called at each directory traversed
-  -> Path b Dir
-     -- ^ Directory where the traversal begins
-  -> m ()
-walkDirAll handler = walkDir handler'
-  where handler' dir subdirs files = do
-          handler dir subdirs files
-          return (WalkDescend subdirs)
-
--- | Similar to 'walkDirAll' but the handler can return a 'Monoid' value which
--- is concatenated and returned.
-walkDirAll'
-  :: (MonadIO m, MonadThrow m, Monoid o)
-  => WalkHandler m o
-     -- ^ Handler called at each directory traversed
-  -> Path b Dir
-     -- ^ Directory where the traversal begins
-  -> m o
-walkDirAll' handler = walkDir' handler'
-  where handler' dir subdirs files = do
-          o <- handler dir subdirs files
-          return (WalkDescend subdirs, o)
 
 -- | Copy directory recursively. This is not smart about symbolic links, but
 -- tries to preserve permissions when possible. If destination directory

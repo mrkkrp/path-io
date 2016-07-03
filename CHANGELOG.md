@@ -1,3 +1,16 @@
+## Path IO 1.2.0
+
+* Added `walkDir` function to traverse a directory tree with a handler.
+
+* Added `walkDirAccum` function which is like `walkDir` but also accumulates
+  the output of the handler and returns it.
+
+* Added `listDirRecurWith` function which is like `listDirRecur` but with
+  predicates to select directories and files.
+
+* Added `listDirRecurWithPruned` function which is like `listDirRecurWith` but
+  does not traverse the selected directories further.
+
 ## Path IO 1.1.0
 
 * Fixed bug in `copyDirRecur` when it was unable to fully copy read-only

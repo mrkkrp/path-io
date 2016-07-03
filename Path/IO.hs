@@ -403,7 +403,9 @@ walkDir
   -> Path b Dir
      -- ^ Directory where traversal begins
   -> m ()
-walkDir handler topdir = void (makeAbsolute topdir >>= walkAvoidLoop Set.empty)
+walkDir handler topdir = do
+  _ <- makeAbsolute topdir >>= walkAvoidLoop Set.empty
+  return ()
   where
     walkAvoidLoop traversed curdir = do
       mRes <- checkLoop traversed curdir

@@ -341,7 +341,7 @@ listDirRecurWith dirPred filePred = walkDirAccum handler
   where handler _ dirs files = do
           d <- filterM dirPred dirs
           f <- filterM filePred files
-          return (WalkDescend d, (d, f))
+          return (WalkDescend dirs, (d, f))
 
 -- | Similar to 'listDirRecurWith' but prunes the matched directories
 -- i.e. it returns the matched dirs but does not traverse them.

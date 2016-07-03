@@ -50,11 +50,13 @@ import Control.Applicative ((<$>))
 main :: IO ()
 main = hspec . around withSandbox $ do
   beforeWith populatedDir $ do
-    describe "listDir"      listDirSpec
-    describe "listDirRecur" listDirRecurSpec
-    describe "copyDirRecur" copyDirRecurSpec
-    describe "copyDirRecur'" copyDirRecur'Spec
-    describe "findFile"     findFileSpec
+    describe "listDir"                listDirSpec
+    describe "listDirRecur"           listDirRecurSpec
+    describe "listDirRecurWith"       listDirRecurWithSpec
+    describe "listDirRecurWithPruned" listDirRecurWithPrunedSpec
+    describe "copyDirRecur"           copyDirRecurSpec
+    describe "copyDirRecur'"          copyDirRecur'Spec
+    describe "findFile"               findFileSpec
   describe "getCurrentDir"  getCurrentDirSpec
   describe "setCurrentDir"  setCurrentDirSpec
   describe "withCurrentDir" withCurrentDirSpec
@@ -68,6 +70,22 @@ listDirSpec = it "lists directory" $ \dir ->
 listDirRecurSpec :: SpecWith (Path Abs Dir)
 listDirRecurSpec = it "lists directory recursively" $ \dir ->
   getDirStructure listDirRecur dir `shouldReturn` populatedDirStructure
+
+listDirRecurWithSpec :: SpecWith (Path Abs Dir)
+listDirRecurWithSpec =
+  it "lists directory recursively using predicates" $ \dir ->
+      getDirStructure (listDirRecurWith
+                        (return . ($(mkRelDir "c") /=) . dirname)
+                        (return . ($(mkRelFile "two.txt") /=) . filename)) dir
+        `shouldReturn` populatedDirRecurWith
+
+listDirRecurWithPrunedSpec :: SpecWith (Path Abs Dir)
+listDirRecurWithPrunedSpec =
+  it "lists directory recursively with pruning using predicates" $ \dir ->
+      getDirStructure (listDirRecurWithPruned
+                        (return . ($(mkRelDir "c") /=) . dirname)
+                        (return . ($(mkRelFile "two.txt") /=) . filename)) dir
+        `shouldReturn` populatedDirRecurWithPruned
 
 copyDirRecurSpec :: SpecWith (Path Abs Dir)
 copyDirRecurSpec = do
@@ -204,6 +222,33 @@ populatedDirStructure =
 
 populatedDirTop :: ([Path Rel Dir], [Path Rel File])
 populatedDirTop =
+  ( [ $(mkRelDir "a")
+    , $(mkRelDir "b")
+    ]
+  , [ $(mkRelFile "one.txt")
+    ]
+  )
+
+-- | Structure of populated directory as it should be scanned by
+-- 'listDirRecurWith' function using predicates to filter out dir 'c' and the
+-- file 'two.txt'
+
+populatedDirRecurWith :: ([Path Rel Dir], [Path Rel File])
+populatedDirRecurWith =
+  ( [ $(mkRelDir "a")
+    , $(mkRelDir "b")
+    ]
+  , [ $(mkRelFile "b/c/three.txt")
+    , $(mkRelFile "one.txt")
+    ]
+  )
+
+-- | Structure of populated directory as it should be scanned by
+-- 'listDirRecurWithPruned' function using predicates to filter out and prune
+-- dir 'c', and filter out the file 'two.txt'
+
+populatedDirRecurWithPruned :: ([Path Rel Dir], [Path Rel File])
+populatedDirRecurWithPruned =
   ( [ $(mkRelDir "a")
     , $(mkRelDir "b")
     ]

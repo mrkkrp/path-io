@@ -42,6 +42,7 @@ import Path
 import Path.IO
 import Test.Hspec
 import System.Environment
+import System.PosixCompat.Files
 
 #if !MIN_VERSION_base(4,8,0)
 import Control.Applicative ((<$>))
@@ -54,9 +55,16 @@ main = hspec . around withSandbox $ do
     describe "listDirRecur"           listDirRecurSpec
     describe "listDirRecurWith"       listDirRecurWithSpec
     describe "listDirRecurWithPruned" listDirRecurWithPrunedSpec
+    describe "walkDir Finish"         walkDirFinishSpec
     describe "copyDirRecur"           copyDirRecurSpec
     describe "copyDirRecur'"          copyDirRecur'Spec
     describe "findFile"               findFileSpec
+  -- This test may fail on windows as unix-compat does not implement
+  -- createSymbolicLink.
+#ifndef mingw32_HOST_OS
+  beforeWith populatedCyclicDir $ do
+    describe "listDirRecur Cyclic"    listDirRecurCyclicSpec
+#endif
   describe "getCurrentDir"  getCurrentDirSpec
   describe "setCurrentDir"  setCurrentDirSpec
   describe "withCurrentDir" withCurrentDirSpec
@@ -86,6 +94,25 @@ listDirRecurWithPrunedSpec =
                         (return . ($(mkRelDir "c") /=) . dirname)
                         (return . ($(mkRelFile "two.txt") /=) . filename)) dir
         `shouldReturn` populatedDirRecurWithPruned
+
+listDirRecurCyclicSpec :: SpecWith (Path Abs Dir)
+listDirRecurCyclicSpec =
+  it "lists directory trees having traversal cycles" $ \dir ->
+    getDirStructure listDirRecur dir `shouldReturn` populatedCyclicDirStructure
+
+-- | walkDir with a Finish handler may have unpredictable output depending on
+-- the order of traversal. The only guarantee is that we will finish only after
+-- we find the directory "c". Though if we test only for the presence of "c" we
+-- are not really testing if we indeed cut the traversal short.
+
+walkDirFinishSpec :: SpecWith (Path Abs Dir)
+walkDirFinishSpec =
+  it "Finishes only after finding what it is looking for" $ \dir -> do
+    (d, _) <- getDirStructure (walkDirAccum handler) dir
+    map dirname d `shouldContain` [$(mkRelDir "c")]
+    where handler p dirs files
+            | dirname p == $(mkRelDir "c") = return (WalkFinish, ([],[]))
+            | otherwise = return (WalkDescend dirs, (dirs, files))
 
 copyDirRecurSpec :: SpecWith (Path Abs Dir)
 copyDirRecurSpec = do
@@ -216,6 +243,48 @@ populatedDirStructure =
     , $(mkRelFile "one.txt")
     ]
   )
+
+-- | Create a directory structure which has cycles in it due to directory
+-- symbolic links.
+--
+-- 1) Mutual cycles between two directory trees. If we traverse a or c we
+-- will get into the same cycle:
+    -- a/(b -> c), c/(d -> a)
+    -- c/(d -> a), a/(b -> c)
+-- 2) Cycle with own ancestor
+    -- e/f/(g -> e)
+
+populatedCyclicDirStructure :: ([Path Rel Dir], [Path Rel File])
+populatedCyclicDirStructure =
+  ( [
+      $(mkRelDir "a")
+    , $(mkRelDir "a/b")   -- b points to c
+    , $(mkRelDir "a/b/d") -- because b is same as c
+    , $(mkRelDir "c")
+    , $(mkRelDir "c/d")   -- d points to a
+    , $(mkRelDir "c/d/b") -- because d is same as a
+    , $(mkRelDir "e")
+    , $(mkRelDir "e/f")
+    , $(mkRelDir "e/f/g") -- g points to e
+    ]
+  , []
+  )
+
+-- | Created the objects described in 'populatedCyclicDirStructure'.
+-- Return path to that directory.
+
+populatedCyclicDir :: Path Abs Dir -> IO (Path Abs Dir)
+populatedCyclicDir root = do
+  let pdir          = root </> $(mkRelDir "pdir")
+      withinSandbox = (pdir </>)
+  ensureDir pdir
+  ensureDir $ withinSandbox $(mkRelDir "a")
+  ensureDir $ withinSandbox $(mkRelDir "c")
+  ensureDir $ withinSandbox $(mkRelDir "e/f")
+  createSymbolicLink "../c" (toFilePath $ withinSandbox $(mkRelFile "a/b"))
+  createSymbolicLink "../a" (toFilePath $ withinSandbox $(mkRelFile "c/d"))
+  createSymbolicLink "../../e" (toFilePath $ withinSandbox $(mkRelFile "e/f/g"))
+  return pdir
 
 -- | Top-level structure of populated directory as it should be scanned by
 -- the 'listDir' function.

@@ -1,3 +1,4 @@
+-- vim:ts=2 sw=2
 -- |
 -- Module      :  Path.IO
 -- Copyright   :  © 2016 Mark Karpov
@@ -326,7 +327,7 @@ listDirRecur :: (MonadIO m, MonadThrow m)
   => Path b Dir        -- ^ Directory to list
   -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
 listDirRecur = walkDirAccum handler
-    where handler _ dirs files = return (WalkDescend dirs, (dirs, files))
+    where handler _ dirs files = return (WalkExclude [], (dirs, files))
 
 -- | Similar to 'listDirRecur' but can use predicates to select the files and
 -- directories returned.
@@ -341,7 +342,7 @@ listDirRecurWith dirPred filePred = walkDirAccum handler
   where handler _ dirs files = do
           d <- filterM dirPred dirs
           f <- filterM filePred files
-          return (WalkDescend dirs, (d, f))
+          return (WalkExclude [], (d, f))
 
 -- | Similar to 'listDirRecurWith' but prunes the matched directories
 -- i.e. it returns the matched dirs but does not traverse them.
@@ -357,7 +358,7 @@ listDirRecurWithPruned dirPred filePred =
     where handler _ dirs files = do
             d <- filterM dirPred dirs
             f <- filterM filePred files
-            return (WalkDescend (dirs \\ d), (d, f))
+            return (WalkExclude d, (d, f))
 
 -- Recursive directory walk functionality, with a flexible API and avoidance
 -- of loops. Following are some notes on the design.
@@ -371,7 +372,12 @@ listDirRecurWithPruned dirPred filePred =
 --
 -- We choose the first approach here since it is more flexible and can achieve
 -- everything that the second one can. The additional benefit with this is that
--- we have more context to use for the traversal decisions.
+-- we can use the parent dir context efficiently instead of each child looking
+-- at the parent context independently.
+--
+-- To control which subdirs to descend we use a WalkExclude API instead of a
+-- WalkInclude type of API so that the handlers cannot accidentally ask us to
+-- descend a dir which is not a subdir of the directory being walked.
 --
 -- Avoiding Traversal Loops:
 --
@@ -381,17 +387,16 @@ listDirRecurWithPruned dirPred filePred =
 -- be going in loops due to the changes.
 --
 -- We record the path we are coming from to detect the loops. If we end up
--- traversing the same directory again we are in a loop. We use device id and
--- inode number pair instead of recording paths so that we can detect even
--- hardlinking loops.
+-- traversing the same directory again we are in a loop.
 
 -- | Action returned by the traversal callback handler. The action decides how
--- the traversal will proceed further. Note the difference between
--- @'WalkFinish'@ and @'WalkDescend' []@.
+-- the traversal will proceed further. Note that @WalkFinish@ is not the same
+-- as @WalkExclude [all subdirs]@.
 
 data WalkAction =
     WalkFinish                  -- ^ Finish the entire walk
-  | WalkDescend [Path Abs Dir]  -- ^ List of sub-directories to descend
+  | WalkExclude [Path Abs Dir]  -- ^ List of sub-directories to exclude from
+                                -- descending
 
 -- | Traverse a directory tree, calling the supplied  handler at each directory
 -- node traversed. Detects and silently avoids any traversal loops.
@@ -419,9 +424,10 @@ walkDir handler topdir =
       action <- handler curdir subdirs files
       case action of
         WalkFinish -> return Nothing
-        WalkDescend [] -> return $ Just ()
-        WalkDescend dirs -> runMaybeT $
-          mapM_ (MaybeT . (walkAvoidLoop traversed)) dirs
+        WalkExclude xdirs ->
+          case subdirs \\ xdirs of
+            [] -> return $ Just ()
+            ds -> runMaybeT $ mapM_ (MaybeT . walkAvoidLoop traversed) ds
 
     checkLoop traversed dir = do
       st <- liftIO $ getFileStatus (toFilePath dir)
@@ -443,7 +449,7 @@ walkDirAccum
   -> Path b Dir
      -- ^ Directory where traversal begins
   -> m o
-     -- ^ Accumulation of outputs returned by the handler
+     -- ^ Accumulation of outputs returned by the handler invocations
 walkDirAccum handler topdir = do
   ((), result) <- runWriterT $ walkDir handler' topdir
   return result

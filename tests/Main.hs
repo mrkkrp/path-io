@@ -112,7 +112,7 @@ walkDirFinishSpec =
     map dirname d `shouldContain` [$(mkRelDir "c")]
     where handler p dirs files
             | dirname p == $(mkRelDir "c") = return (WalkFinish, ([],[]))
-            | otherwise = return (WalkDescend dirs, (dirs, files))
+            | otherwise = return (WalkExclude [], (dirs, files))
 
 copyDirRecurSpec :: SpecWith (Path Abs Dir)
 copyDirRecurSpec = do

@@ -108,11 +108,13 @@ listDirRecurCyclicSpec =
 walkDirFinishSpec :: SpecWith (Path Abs Dir)
 walkDirFinishSpec =
   it "Finishes only after finding what it is looking for" $ \dir -> do
-    (d, _) <- getDirStructure (walkDirAccum handler) dir
+      (d, _) <- getDirStructure (walkDirAccum (Just dHandler) writer) dir
     map dirname d `shouldContain` [$(mkRelDir "c")]
-    where handler p dirs files
-            | dirname p == $(mkRelDir "c") = return (WalkFinish, ([],[]))
-            | otherwise = return (WalkExclude [], (dirs, files))
+    where dHandler p _ _
+            | dirname p == $(mkRelDir "c") = return WalkFinish
+            | otherwise = return (WalkExclude [])
+
+          writer _ d f = return (d, f)
 
 copyDirRecurSpec :: SpecWith (Path Abs Dir)
 copyDirRecurSpec = do

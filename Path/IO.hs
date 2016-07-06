@@ -22,18 +22,23 @@ module Path.IO
     createDir
   , createDirIfMissing
   , ensureDir
-  , removeDir
-  , removeDirRecur
   , renameDir
+    -- ** Walking directory trees
   , WalkAction(..)
   , walkDir
+  , descendWith
+  , descendExcluding
   , walkDirAccum
+  , writeWith
+    -- ** Actions involving directory trees
   , listDir
   , listDirRecur
   , listDirRecurWith
   , listDirRecurWithPruned
   , copyDirRecur
   , copyDirRecur'
+  , removeDir
+  , removeDirRecur
     -- ** Current working directory
   , getCurrentDir
   , setCurrentDir
@@ -219,7 +224,7 @@ removeDir = liftD D.removeDirectory
 
 -- | @'removeDirRecur' dir@ removes an existing directory @dir@ together
 -- with its contents and subdirectories. Within this directory, symbolic
--- links are removed without affecting their the targets.
+-- links are removed without affecting their targets.
 
 removeDirRecur :: MonadIO m => Path b Dir -> m ()
 removeDirRecur = liftD D.removeDirectoryRecursive
@@ -324,10 +329,9 @@ listDir path = do
 -- exceptions as 'listDir'.
 
 listDirRecur :: (MonadIO m, MonadThrow m)
-  => Path b Dir        -- ^ Directory to list
+  => Path b Dir                          -- ^ Directory to list
   -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
-listDirRecur = walkDirAccum handler
-    where handler _ dirs files = return (WalkExclude [], (dirs, files))
+listDirRecur = walkDirAccum Nothing (\_ d f -> return (d, f))
 
 -- | Similar to 'listDirRecur' but can use predicates to select the files and
 -- directories returned.
@@ -338,11 +342,8 @@ listDirRecurWith
   -> (Path Abs File -> m Bool)           -- ^ File match predicate
   -> Path Abs Dir                        -- ^ Top dir to traverse
   -> m ([Path Abs Dir], [Path Abs File]) -- ^ Matched subdirs and files
-listDirRecurWith dirPred filePred = walkDirAccum handler
-  where handler _ dirs files = do
-          d <- filterM dirPred dirs
-          f <- filterM filePred files
-          return (WalkExclude [], (d, f))
+listDirRecurWith dirPred filePred =
+  walkDirAccum Nothing (writeWith dirPred filePred)
 
 -- | Similar to 'listDirRecurWith' but prunes the matched directories
 -- i.e. it returns the matched dirs but does not traverse them.
@@ -354,12 +355,12 @@ listDirRecurWithPruned
     -> Path Abs Dir                        -- ^ Top dir to traverse
     -> m ([Path Abs Dir], [Path Abs File]) -- ^ Matched subdirs and files
 listDirRecurWithPruned dirPred filePred =
-  walkDirAccum handler
-    where handler _ dirs files = do
-            d <- filterM dirPred dirs
-            f <- filterM filePred files
-            return (WalkExclude d, (d, f))
+  walkDirAccum (Just $ descendExcluding dirPred) (writeWith dirPred filePred)
 
+----------------------------------------------------------------------------
+-- Directory Walk
+----------------------------------------------------------------------------
+--
 -- Recursive directory walk functionality, with a flexible API and avoidance
 -- of loops. Following are some notes on the design.
 --
@@ -389,17 +390,19 @@ listDirRecurWithPruned dirPred filePred =
 -- We record the path we are coming from to detect the loops. If we end up
 -- traversing the same directory again we are in a loop.
 
--- | Action returned by the traversal callback handler. The action decides how
--- the traversal will proceed further. Note that @WalkFinish@ is not the same
--- as @WalkExclude [all subdirs]@.
+-- | Action returned by the traversal handler function. The action decides how
+-- the traversal will proceed further.
 
 data WalkAction =
-    WalkFinish                  -- ^ Finish the entire walk
+    WalkFinish                  -- ^ Finish the entire walk altogether
   | WalkExclude [Path Abs Dir]  -- ^ List of sub-directories to exclude from
                                 -- descending
 
--- | Traverse a directory tree, calling the supplied  handler at each directory
--- node traversed. Detects and silently avoids any traversal loops.
+-- | Traverse a directory tree, calling a handler function at each directory
+-- node traversed. The absolute paths of the parent directory, sub-directories
+-- and the files in the directory are provided as arguments to the handler.
+--
+-- Detects and silently avoids any traversal loops in the directory tree.
 
 walkDir
   :: (MonadIO m, MonadThrow m)
@@ -438,26 +441,67 @@ walkDir handler topdir =
       then return Nothing
       else return $ Just (Set.insert ufid traversed)
 
--- | Similar to 'walkDir' but in addition to performing an action the handler
--- also returns a 'Monoid' value. All the values returned by handler
--- invocations are accumulated and returned.
+-- | Create a descend handler for `walkDir` which excludes sub-directories
+-- matching a predicate, from descending.
+
+descendExcluding :: (MonadIO m, MonadThrow m)
+  => (Path Abs Dir -> m Bool)
+     -- ^ Directory match predicate
+  -> (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m WalkAction)
+     -- ^ Descend handler
+descendExcluding p = handler
+  where handler _ d _ = return . WalkExclude =<< filterM p d
+
+-- | Create a descend handler for `walkDir` which descends only sub-directories
+-- matching a predicate.
+
+descendWith :: (MonadIO m, MonadThrow m)
+  => (Path Abs Dir -> m Bool)
+     -- ^ Directory match predicate
+  -> (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m WalkAction)
+     -- ^ Descend handler
+descendWith p = handler
+  where handler paren d f = descendExcluding (fmap not . p) paren d f
+
+-- | Similar to 'walkDir' but accepts a 'Monoid' returning, output
+-- writer as well. Values returned by the output writer invocations are
+-- accumulated and returned.
 
 walkDirAccum
   :: (MonadIO m, MonadThrow m, Monoid o)
-  => (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m (WalkAction, o))
-     -- ^ Handler (@dir -> subdirs -> files -> ('WalkAction', output)@)
+  => Maybe (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m WalkAction)
+    -- ^ Descend handler (@dir -> subdirs -> files -> 'WalkAction'@),
+    -- descend the whole tree if omitted
+  -> (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m o)
+     -- ^ Output writer (@dir -> subdirs -> files -> o@)
   -> Path b Dir
      -- ^ Directory where traversal begins
   -> m o
-     -- ^ Accumulation of outputs returned by the handler invocations
-walkDirAccum handler topdir = do
-  ((), result) <- runWriterT $ walkDir handler' topdir
+     -- ^ Accumulation of outputs generated by the output writer invocations
+walkDirAccum dHandler writer topdir = do
+  ((), result) <- runWriterT $ walkDir handler topdir
   return result
   where
-    handler' dir subdirs files = do
-      (act, res) <- lift $ handler dir subdirs files
+    handler dir subdirs files = do
+      res <- lift $ writer dir subdirs files
       tell res
-      return act
+      case dHandler of
+        Just h -> lift $ h dir subdirs files
+        Nothing -> return (WalkExclude [])
+
+-- | Create an output writer for `walkDirAccum` which writes dirs and
+-- files matching corresponding predicates, as a tuple of lists.
+
+writeWith :: (MonadIO m, MonadThrow m)
+  => (Path Abs Dir -> m Bool)                 -- ^ Directory match predicate
+  -> (Path Abs File -> m Bool)                -- ^ File match predicate
+  -> (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File]
+      -> m ([Path Abs Dir], [Path Abs File])) -- ^ Output tuple writer
+writeWith pd pf = writer
+  where writer _ d f = do
+          d' <- filterM pd d
+          f' <- filterM pf f
+          return (d', f')
 
 -- | Copy directory recursively. This is not smart about symbolic links, but
 -- tries to preserve permissions when possible. If destination directory

@@ -444,7 +444,7 @@ walkDir handler topdir =
 -- | Create a descend handler for `walkDir` which excludes sub-directories
 -- matching a predicate, from descending.
 
-descendExcluding :: (MonadIO m, MonadThrow m)
+descendExcluding :: MonadIO m
   => (Path Abs Dir -> m Bool)
      -- ^ Directory match predicate
   -> (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m WalkAction)
@@ -455,7 +455,11 @@ descendExcluding p = handler
 -- | Create a descend handler for `walkDir` which descends only sub-directories
 -- matching a predicate.
 
-descendWith :: (MonadIO m, MonadThrow m)
+descendWith :: (MonadIO m
+#if !MIN_VERSION_base(4,8,0)
+  , Functor m
+#endif
+  )
   => (Path Abs Dir -> m Bool)
      -- ^ Directory match predicate
   -> (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m WalkAction)
@@ -466,6 +470,10 @@ descendWith p = handler
 -- | Similar to 'walkDir' but accepts a 'Monoid' returning, output
 -- writer as well. Values returned by the output writer invocations are
 -- accumulated and returned.
+--
+-- Both, the descend handler as well as the output writer can be used for side
+-- effects but keep in mind that the output writer runs before the descend
+-- handler.
 
 walkDirAccum
   :: (MonadIO m, MonadThrow m, Monoid o)
@@ -492,7 +500,7 @@ walkDirAccum dHandler writer topdir = do
 -- | Create an output writer for `walkDirAccum` which writes dirs and
 -- files matching corresponding predicates, as a tuple of lists.
 
-writeWith :: (MonadIO m, MonadThrow m)
+writeWith :: MonadIO m
   => (Path Abs Dir -> m Bool)                 -- ^ Directory match predicate
   -> (Path Abs File -> m Bool)                -- ^ File match predicate
   -> (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File]

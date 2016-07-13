@@ -1,4 +1,3 @@
--- vim:ts=2 sw=2
 -- |
 -- Module      :  Path.IO
 -- Copyright   :  © 2016 Mark Karpov
@@ -281,6 +280,9 @@ renameDir :: MonadIO m
   -> m ()
 renameDir = liftD2 D.renameDirectory
 
+----------------------------------------------------------------------------
+-- Actions involving directory trees
+
 -- | @'listDir' dir@ returns a list of /all/ entries in @dir@ without the
 -- special entries (@.@ and @..@). Entries are not sorted.
 --
@@ -358,9 +360,8 @@ listDirRecurWithPruned dirPred filePred =
   walkDirAccum (Just $ descendExcluding dirPred) (writeWith dirPred filePred)
 
 ----------------------------------------------------------------------------
--- Directory Walk
-----------------------------------------------------------------------------
---
+-- Walking directory trees
+
 -- Recursive directory walk functionality, with a flexible API and avoidance
 -- of loops. Following are some notes on the design.
 --
@@ -455,17 +456,13 @@ descendExcluding p = handler
 -- | Create a descend handler for `walkDir` which descends only sub-directories
 -- matching a predicate.
 
-descendWith :: (MonadIO m
-#if !MIN_VERSION_base(4,8,0)
-  , Functor m
-#endif
-  )
+descendWith :: MonadIO m
   => (Path Abs Dir -> m Bool)
      -- ^ Directory match predicate
   -> (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m WalkAction)
      -- ^ Descend handler
 descendWith p = handler
-  where handler paren d f = descendExcluding (fmap not . p) paren d f
+  where handler paren d f = descendExcluding (liftM not . p) paren d f
 
 -- | Similar to 'walkDir' but accepts a 'Monoid' returning, output
 -- writer as well. Values returned by the output writer invocations are

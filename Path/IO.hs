@@ -21,13 +21,23 @@ module Path.IO
     createDir
   , createDirIfMissing
   , ensureDir
-  , removeDir
-  , removeDirRecur
   , renameDir
+    -- ** Walking directory trees
+  , WalkAction(..)
+  , walkDir
+  , descendWith
+  , descendExcluding
+  , walkDirAccum
+  , writeWith
+    -- ** Actions involving directory trees
   , listDir
   , listDirRecur
+  , listDirRecurWith
+  , listDirRecurWithPruned
   , copyDirRecur
   , copyDirRecur'
+  , removeDir
+  , removeDirRecur
     -- ** Current working directory
   , getCurrentDir
   , setCurrentDir
@@ -93,19 +103,23 @@ where
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class (MonadIO (..))
+import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
+import Control.Monad.Trans.Writer.Lazy (runWriterT, tell)
 import Data.Either (lefts, rights)
-import Data.Foldable (foldl')
 import Data.List ((\\))
 import Data.Time (UTCTime)
 import Path
 import System.IO (Handle)
 import System.IO.Error (isDoesNotExistError)
+import System.PosixCompat.Files (deviceID, fileID, getFileStatus)
+import qualified Data.Set as Set
 import qualified System.Directory as D
 import qualified System.FilePath  as F
 import qualified System.IO.Temp   as T
 
 #if !MIN_VERSION_base(4,8,0)
-import Data.Monoid (mappend)
+import Data.Monoid (Monoid)
 #endif
 
 ----------------------------------------------------------------------------
@@ -166,54 +180,6 @@ createDirIfMissing p = liftD (D.createDirectoryIfMissing p)
 ensureDir :: MonadIO m => Path b Dir -> m ()
 ensureDir = createDirIfMissing True
 
--- | @'removeDir' dir@ removes an existing directory @dir@. The
--- implementation may specify additional constraints which must be satisfied
--- before a directory can be removed (e.g. the directory has to be empty, or
--- may not be in use by other processes).  It is not legal for an
--- implementation to partially remove a directory unless the entire
--- directory is removed. A conformant implementation need not support
--- directory removal in all situations (e.g. removal of the root directory).
---
--- The operation may fail with:
---
--- * 'HardwareFault'
--- A physical I\/O error has occurred.
--- @[EIO]@
---
--- * 'InvalidArgument'
--- The operand is not a valid directory name.
--- @[ENAMETOOLONG, ELOOP]@
---
--- * 'isDoesNotExistError' \/ 'NoSuchThing'
--- The directory does not exist.
--- @[ENOENT, ENOTDIR]@
---
--- * 'isPermissionError' \/ 'PermissionDenied'
--- The process has insufficient privileges to perform the operation.
--- @[EROFS, EACCES, EPERM]@
---
--- * 'UnsatisfiedConstraints'
--- Implementation-dependent constraints are not satisfied.
--- @[EBUSY, ENOTEMPTY, EEXIST]@
---
--- * 'UnsupportedOperation'
--- The implementation does not support removal in this situation.
--- @[EINVAL]@
---
--- * 'InappropriateType'
--- The operand refers to an existing non-directory object.
--- @[ENOTDIR]@
-
-removeDir :: MonadIO m => Path b Dir -> m ()
-removeDir = liftD D.removeDirectory
-
--- | @'removeDirRecur' dir@ removes an existing directory @dir@ together
--- with its contents and subdirectories. Within this directory, symbolic
--- links are removed without affecting their the targets.
-
-removeDirRecur :: MonadIO m => Path b Dir -> m ()
-removeDirRecur = liftD D.removeDirectoryRecursive
-
 -- |@'renameDir' old new@ changes the name of an existing directory from
 -- @old@ to @new@. If the @new@ directory already exists, it is atomically
 -- replaced by the @old@ directory. If the @new@ directory is neither the
@@ -266,6 +232,9 @@ renameDir :: MonadIO m
   -> m ()
 renameDir = liftD2 D.renameDirectory
 
+----------------------------------------------------------------------------
+-- Actions involving directory trees
+
 -- | @'listDir' dir@ returns a list of /all/ entries in @dir@ without the
 -- special entries (@.@ and @..@). Entries are not sorted.
 --
@@ -314,11 +283,33 @@ listDir path = do
 -- exceptions as 'listDir'.
 
 listDirRecur :: (MonadIO m, MonadThrow m)
-  => Path b Dir        -- ^ Directory to list
+  => Path b Dir                          -- ^ Directory to list
   -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
-listDirRecur path = do
-  items <- listDir path
-  foldl' mappend items `liftM` mapM listDirRecur (fst items)
+listDirRecur = walkDirAccum Nothing (\_ d f -> return (d, f))
+
+-- | Similar to 'listDirRecur' but can use predicates to select the files and
+-- directories returned.
+
+listDirRecurWith
+  :: (MonadIO m, MonadThrow m)
+  => (Path Abs Dir -> m Bool)            -- ^ Dir match predicate
+  -> (Path Abs File -> m Bool)           -- ^ File match predicate
+  -> Path Abs Dir                        -- ^ Top dir to traverse
+  -> m ([Path Abs Dir], [Path Abs File]) -- ^ Matched subdirs and files
+listDirRecurWith dirPred filePred =
+  walkDirAccum Nothing (writeWith dirPred filePred)
+
+-- | Similar to 'listDirRecurWith' but prunes the matched directories
+-- i.e. it returns the matched dirs but does not traverse them.
+
+listDirRecurWithPruned
+    :: (MonadIO m, MonadThrow m)
+    => (Path Abs Dir -> m Bool)            -- ^ Dir match predicate
+    -> (Path Abs File -> m Bool)           -- ^ File match predicate
+    -> Path Abs Dir                        -- ^ Top dir to traverse
+    -> m ([Path Abs Dir], [Path Abs File]) -- ^ Matched subdirs and files
+listDirRecurWithPruned dirPred filePred =
+  walkDirAccum (Just $ descendExcluding dirPred) (writeWith dirPred filePred)
 
 -- | Copy directory recursively. This is not smart about symbolic links, but
 -- tries to preserve permissions when possible. If destination directory
@@ -368,6 +359,203 @@ copyDirRecurGen p src dest = do
   when p $ do
     ignoringIOErrors (copyPermissions bsrc bdest)
     zipWithM_ (\s d -> ignoringIOErrors $ copyPermissions s d) dirs tdirs
+
+-- | @'removeDir' dir@ removes an existing directory @dir@. The
+-- implementation may specify additional constraints which must be satisfied
+-- before a directory can be removed (e.g. the directory has to be empty, or
+-- may not be in use by other processes).  It is not legal for an
+-- implementation to partially remove a directory unless the entire
+-- directory is removed. A conformant implementation need not support
+-- directory removal in all situations (e.g. removal of the root directory).
+--
+-- The operation may fail with:
+--
+-- * 'HardwareFault'
+-- A physical I\/O error has occurred.
+-- @[EIO]@
+--
+-- * 'InvalidArgument'
+-- The operand is not a valid directory name.
+-- @[ENAMETOOLONG, ELOOP]@
+--
+-- * 'isDoesNotExistError' \/ 'NoSuchThing'
+-- The directory does not exist.
+-- @[ENOENT, ENOTDIR]@
+--
+-- * 'isPermissionError' \/ 'PermissionDenied'
+-- The process has insufficient privileges to perform the operation.
+-- @[EROFS, EACCES, EPERM]@
+--
+-- * 'UnsatisfiedConstraints'
+-- Implementation-dependent constraints are not satisfied.
+-- @[EBUSY, ENOTEMPTY, EEXIST]@
+--
+-- * 'UnsupportedOperation'
+-- The implementation does not support removal in this situation.
+-- @[EINVAL]@
+--
+-- * 'InappropriateType'
+-- The operand refers to an existing non-directory object.
+-- @[ENOTDIR]@
+
+removeDir :: MonadIO m => Path b Dir -> m ()
+removeDir = liftD D.removeDirectory
+
+-- | @'removeDirRecur' dir@ removes an existing directory @dir@ together
+-- with its contents and subdirectories. Within this directory, symbolic
+-- links are removed without affecting their targets.
+
+removeDirRecur :: MonadIO m => Path b Dir -> m ()
+removeDirRecur = liftD D.removeDirectoryRecursive
+
+----------------------------------------------------------------------------
+-- Walking directory trees
+
+-- Recursive directory walk functionality, with a flexible API and avoidance
+-- of loops. Following are some notes on the design.
+--
+-- Callback handler API:
+--
+-- The callback handler interface is designed to be highly flexible. There are
+-- two possible alternative ways to control the traversal:
+-- * In the context of the parent dir, decide which subdirs to descend into.
+-- * In the context of the subdir, decide whether to traverse the subdir or not.
+--
+-- We choose the first approach here since it is more flexible and can achieve
+-- everything that the second one can. The additional benefit with this is that
+-- we can use the parent dir context efficiently instead of each child looking
+-- at the parent context independently.
+--
+-- To control which subdirs to descend we use a WalkExclude API instead of a
+-- WalkInclude type of API so that the handlers cannot accidentally ask us to
+-- descend a dir which is not a subdir of the directory being walked.
+--
+-- Avoiding Traversal Loops:
+--
+-- There can be loops in the path being traversed due to subdirectory symlinks
+-- or filesystem corruptions can cause loops by creating directory hardlinks.
+-- Also, if the filesystem is changing while we are traversing then we might
+-- be going in loops due to the changes.
+--
+-- We record the path we are coming from to detect the loops. If we end up
+-- traversing the same directory again we are in a loop.
+
+-- | Action returned by the traversal handler function. The action decides how
+-- the traversal will proceed further.
+
+data WalkAction =
+    WalkFinish                  -- ^ Finish the entire walk altogether
+  | WalkExclude [Path Abs Dir]  -- ^ List of sub-directories to exclude from
+                                -- descending
+
+-- | Traverse a directory tree, calling a handler function at each directory
+-- node traversed. The absolute paths of the parent directory, sub-directories
+-- and the files in the directory are provided as arguments to the handler.
+--
+-- Detects and silently avoids any traversal loops in the directory tree.
+
+walkDir
+  :: (MonadIO m, MonadThrow m)
+  => (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m WalkAction)
+     -- ^ Handler (@dir -> subdirs -> files -> 'WalkAction'@)
+  -> Path b Dir
+     -- ^ Directory where traversal begins
+  -> m ()
+walkDir handler topdir =
+  makeAbsolute topdir >>= walkAvoidLoop Set.empty >> return ()
+  where
+    walkAvoidLoop traversed curdir = do
+      mRes <- checkLoop traversed curdir
+      case mRes of
+        Nothing -> return $ Just ()
+        Just traversed' -> walktree traversed' curdir
+
+    -- use Maybe monad to abort any further traversal if any of the
+    -- handler calls returns WalkFinish
+    walktree traversed curdir = do
+      (subdirs, files) <- listDir curdir
+      action <- handler curdir subdirs files
+      case action of
+        WalkFinish -> return Nothing
+        WalkExclude xdirs ->
+          case subdirs \\ xdirs of
+            [] -> return $ Just ()
+            ds -> runMaybeT $ mapM_ (MaybeT . walkAvoidLoop traversed) ds
+
+    checkLoop traversed dir = do
+      st <- liftIO $ getFileStatus (toFilePath dir)
+      let ufid = ((deviceID st), (fileID st))
+
+      -- check for loop, have we already traversed this dir?
+      if (Set.member ufid traversed)
+      then return Nothing
+      else return $ Just (Set.insert ufid traversed)
+
+-- | Create a descend handler for `walkDir` which excludes sub-directories
+-- matching a predicate, from descending.
+
+descendExcluding :: MonadIO m
+  => (Path Abs Dir -> m Bool)
+     -- ^ Directory match predicate
+  -> (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m WalkAction)
+     -- ^ Descend handler
+descendExcluding p = handler
+  where handler _ d _ = return . WalkExclude =<< filterM p d
+
+-- | Create a descend handler for `walkDir` which descends only sub-directories
+-- matching a predicate.
+
+descendWith :: MonadIO m
+  => (Path Abs Dir -> m Bool)
+     -- ^ Directory match predicate
+  -> (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m WalkAction)
+     -- ^ Descend handler
+descendWith p = handler
+  where handler paren d f = descendExcluding (liftM not . p) paren d f
+
+-- | Similar to 'walkDir' but accepts a 'Monoid' returning, output
+-- writer as well. Values returned by the output writer invocations are
+-- accumulated and returned.
+--
+-- Both, the descend handler as well as the output writer can be used for side
+-- effects but keep in mind that the output writer runs before the descend
+-- handler.
+
+walkDirAccum
+  :: (MonadIO m, MonadThrow m, Monoid o)
+  => Maybe (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m WalkAction)
+    -- ^ Descend handler (@dir -> subdirs -> files -> 'WalkAction'@),
+    -- descend the whole tree if omitted
+  -> (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m o)
+     -- ^ Output writer (@dir -> subdirs -> files -> o@)
+  -> Path b Dir
+     -- ^ Directory where traversal begins
+  -> m o
+     -- ^ Accumulation of outputs generated by the output writer invocations
+walkDirAccum dHandler writer topdir = do
+  ((), result) <- runWriterT $ walkDir handler topdir
+  return result
+  where
+    handler dir subdirs files = do
+      res <- lift $ writer dir subdirs files
+      tell res
+      case dHandler of
+        Just h -> lift $ h dir subdirs files
+        Nothing -> return (WalkExclude [])
+
+-- | Create an output writer for `walkDirAccum` which writes dirs and
+-- files matching corresponding predicates, as a tuple of lists.
+
+writeWith :: MonadIO m
+  => (Path Abs Dir -> m Bool)                 -- ^ Directory match predicate
+  -> (Path Abs File -> m Bool)                -- ^ File match predicate
+  -> (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File]
+      -> m ([Path Abs Dir], [Path Abs File])) -- ^ Output tuple writer
+writeWith pd pf = writer
+  where writer _ d f = do
+          d' <- filterM pd d
+          f' <- filterM pf f
+          return (d', f')
 
 ----------------------------------------------------------------------------
 -- Current working directory

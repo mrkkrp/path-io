@@ -180,54 +180,6 @@ createDirIfMissing p = liftD (D.createDirectoryIfMissing p)
 ensureDir :: MonadIO m => Path b Dir -> m ()
 ensureDir = createDirIfMissing True
 
--- | @'removeDir' dir@ removes an existing directory @dir@. The
--- implementation may specify additional constraints which must be satisfied
--- before a directory can be removed (e.g. the directory has to be empty, or
--- may not be in use by other processes).  It is not legal for an
--- implementation to partially remove a directory unless the entire
--- directory is removed. A conformant implementation need not support
--- directory removal in all situations (e.g. removal of the root directory).
---
--- The operation may fail with:
---
--- * 'HardwareFault'
--- A physical I\/O error has occurred.
--- @[EIO]@
---
--- * 'InvalidArgument'
--- The operand is not a valid directory name.
--- @[ENAMETOOLONG, ELOOP]@
---
--- * 'isDoesNotExistError' \/ 'NoSuchThing'
--- The directory does not exist.
--- @[ENOENT, ENOTDIR]@
---
--- * 'isPermissionError' \/ 'PermissionDenied'
--- The process has insufficient privileges to perform the operation.
--- @[EROFS, EACCES, EPERM]@
---
--- * 'UnsatisfiedConstraints'
--- Implementation-dependent constraints are not satisfied.
--- @[EBUSY, ENOTEMPTY, EEXIST]@
---
--- * 'UnsupportedOperation'
--- The implementation does not support removal in this situation.
--- @[EINVAL]@
---
--- * 'InappropriateType'
--- The operand refers to an existing non-directory object.
--- @[ENOTDIR]@
-
-removeDir :: MonadIO m => Path b Dir -> m ()
-removeDir = liftD D.removeDirectory
-
--- | @'removeDirRecur' dir@ removes an existing directory @dir@ together
--- with its contents and subdirectories. Within this directory, symbolic
--- links are removed without affecting their targets.
-
-removeDirRecur :: MonadIO m => Path b Dir -> m ()
-removeDirRecur = liftD D.removeDirectoryRecursive
-
 -- |@'renameDir' old new@ changes the name of an existing directory from
 -- @old@ to @new@. If the @new@ directory already exists, it is atomically
 -- replaced by the @old@ directory. If the @new@ directory is neither the
@@ -358,6 +310,103 @@ listDirRecurWithPruned
     -> m ([Path Abs Dir], [Path Abs File]) -- ^ Matched subdirs and files
 listDirRecurWithPruned dirPred filePred =
   walkDirAccum (Just $ descendExcluding dirPred) (writeWith dirPred filePred)
+
+-- | Copy directory recursively. This is not smart about symbolic links, but
+-- tries to preserve permissions when possible. If destination directory
+-- already exists, new files and sub-directories will complement its
+-- structure, possibly overwriting old files if they happen to have the same
+-- name as the new ones.
+
+copyDirRecur :: (MonadIO m, MonadCatch m)
+  => Path b0 Dir       -- ^ Source
+  -> Path b1 Dir       -- ^ Destination
+  -> m ()
+copyDirRecur = copyDirRecurGen True
+
+-- | The same as 'copyDirRecur', but it does not preserve directory
+-- permissions. This may be useful, for example, if directory you want to
+-- copy is “read-only”, but you want your copy to be editable.
+
+copyDirRecur' :: (MonadIO m, MonadCatch m)
+  => Path b0 Dir       -- ^ Source
+  -> Path b1 Dir       -- ^ Destination
+  -> m ()
+copyDirRecur' = copyDirRecurGen False
+
+-- | Generic version of 'copyDirRecur'. The first argument controls whether
+-- to preserve directory permissions or not.
+
+copyDirRecurGen :: (MonadIO m, MonadCatch m)
+  => Bool              -- ^ Should we preserve directory permissions?
+  -> Path b0 Dir       -- ^ Source
+  -> Path b1 Dir       -- ^ Destination
+  -> m ()
+copyDirRecurGen p src dest = do
+  bsrc  <- makeAbsolute src
+  bdest <- makeAbsolute dest
+  (dirs, files) <- listDirRecur bsrc
+  let swapParent :: MonadThrow m
+        => Path Abs Dir
+        -> Path Abs Dir
+        -> Path Abs t
+        -> m (Path Abs t)
+      swapParent old new path = (new </>) `liftM` stripDir old path
+  tdirs  <- mapM (swapParent bsrc bdest) dirs
+  tfiles <- mapM (swapParent bsrc bdest) files
+  ensureDir bdest
+  mapM_ ensureDir tdirs
+  zipWithM_ copyFile files tfiles
+  when p $ do
+    ignoringIOErrors (copyPermissions bsrc bdest)
+    zipWithM_ (\s d -> ignoringIOErrors $ copyPermissions s d) dirs tdirs
+
+-- | @'removeDir' dir@ removes an existing directory @dir@. The
+-- implementation may specify additional constraints which must be satisfied
+-- before a directory can be removed (e.g. the directory has to be empty, or
+-- may not be in use by other processes).  It is not legal for an
+-- implementation to partially remove a directory unless the entire
+-- directory is removed. A conformant implementation need not support
+-- directory removal in all situations (e.g. removal of the root directory).
+--
+-- The operation may fail with:
+--
+-- * 'HardwareFault'
+-- A physical I\/O error has occurred.
+-- @[EIO]@
+--
+-- * 'InvalidArgument'
+-- The operand is not a valid directory name.
+-- @[ENAMETOOLONG, ELOOP]@
+--
+-- * 'isDoesNotExistError' \/ 'NoSuchThing'
+-- The directory does not exist.
+-- @[ENOENT, ENOTDIR]@
+--
+-- * 'isPermissionError' \/ 'PermissionDenied'
+-- The process has insufficient privileges to perform the operation.
+-- @[EROFS, EACCES, EPERM]@
+--
+-- * 'UnsatisfiedConstraints'
+-- Implementation-dependent constraints are not satisfied.
+-- @[EBUSY, ENOTEMPTY, EEXIST]@
+--
+-- * 'UnsupportedOperation'
+-- The implementation does not support removal in this situation.
+-- @[EINVAL]@
+--
+-- * 'InappropriateType'
+-- The operand refers to an existing non-directory object.
+-- @[ENOTDIR]@
+
+removeDir :: MonadIO m => Path b Dir -> m ()
+removeDir = liftD D.removeDirectory
+
+-- | @'removeDirRecur' dir@ removes an existing directory @dir@ together
+-- with its contents and subdirectories. Within this directory, symbolic
+-- links are removed without affecting their targets.
+
+removeDirRecur :: MonadIO m => Path b Dir -> m ()
+removeDirRecur = liftD D.removeDirectoryRecursive
 
 ----------------------------------------------------------------------------
 -- Walking directory trees
@@ -507,55 +556,6 @@ writeWith pd pf = writer
           d' <- filterM pd d
           f' <- filterM pf f
           return (d', f')
-
--- | Copy directory recursively. This is not smart about symbolic links, but
--- tries to preserve permissions when possible. If destination directory
--- already exists, new files and sub-directories will complement its
--- structure, possibly overwriting old files if they happen to have the same
--- name as the new ones.
-
-copyDirRecur :: (MonadIO m, MonadCatch m)
-  => Path b0 Dir       -- ^ Source
-  -> Path b1 Dir       -- ^ Destination
-  -> m ()
-copyDirRecur = copyDirRecurGen True
-
--- | The same as 'copyDirRecur', but it does not preserve directory
--- permissions. This may be useful, for example, if directory you want to
--- copy is “read-only”, but you want your copy to be editable.
-
-copyDirRecur' :: (MonadIO m, MonadCatch m)
-  => Path b0 Dir       -- ^ Source
-  -> Path b1 Dir       -- ^ Destination
-  -> m ()
-copyDirRecur' = copyDirRecurGen False
-
--- | Generic version of 'copyDirRecur'. The first argument controls whether
--- to preserve directory permissions or not.
-
-copyDirRecurGen :: (MonadIO m, MonadCatch m)
-  => Bool              -- ^ Should we preserve directory permissions?
-  -> Path b0 Dir       -- ^ Source
-  -> Path b1 Dir       -- ^ Destination
-  -> m ()
-copyDirRecurGen p src dest = do
-  bsrc  <- makeAbsolute src
-  bdest <- makeAbsolute dest
-  (dirs, files) <- listDirRecur bsrc
-  let swapParent :: MonadThrow m
-        => Path Abs Dir
-        -> Path Abs Dir
-        -> Path Abs t
-        -> m (Path Abs t)
-      swapParent old new path = (new </>) `liftM` stripDir old path
-  tdirs  <- mapM (swapParent bsrc bdest) dirs
-  tfiles <- mapM (swapParent bsrc bdest) files
-  ensureDir bdest
-  mapM_ ensureDir tdirs
-  zipWithM_ copyFile files tfiles
-  when p $ do
-    ignoringIOErrors (copyPermissions bsrc bdest)
-    zipWithM_ (\s d -> ignoringIOErrors $ copyPermissions s d) dirs tdirs
 
 ----------------------------------------------------------------------------
 -- Current working directory

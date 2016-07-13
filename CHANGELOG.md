@@ -2,14 +2,17 @@
 
 * Added `walkDir` function to traverse a directory tree with a handler.
 
-* Added `walkDirAccum` function which is like `walkDir` but also accumulates
-  the output of the handler and returns it.
+* Added `walkDirAccum` function which is like `walkDir` but also accepts an
+  output writer and returns the accumulated output.
 
 * Added `listDirRecurWith` function which is like `listDirRecur` but with
   predicates to select directories and files.
 
 * Added `listDirRecurWithPruned` function which is like `listDirRecurWith` but
   does not traverse the selected directories further.
+
+* All recursive traversal functions (existing and new) now safely handle
+  directory loops due to symbolic or hard links.
 
 ## Path IO 1.1.0
 

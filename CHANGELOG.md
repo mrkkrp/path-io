@@ -8,6 +8,8 @@
 * All recursive traversal functions (existing and new) now safely handle
   directory loops due to symbolic or hard links.
 
+* Added “since” notes to public functions in API.
+
 ## Path IO 1.1.0
 
 * Fixed bug in `copyDirRecur` when it was unable to fully copy read-only

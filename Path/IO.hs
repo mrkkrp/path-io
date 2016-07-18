@@ -172,6 +172,8 @@ createDirIfMissing p = liftD (D.createDirectoryIfMissing p)
 -- necessary. This is just a handy shortcut:
 --
 -- > ensureDir = createDirIfMissing True
+--
+-- @since 0.3.1
 
 ensureDir :: MonadIO m => Path b Dir -> m ()
 ensureDir = createDirIfMissing True
@@ -349,6 +351,8 @@ copyDirRecur = copyDirRecurGen True
 -- | The same as 'copyDirRecur', but it does not preserve directory
 -- permissions. This may be useful, for example, if directory you want to
 -- copy is “read-only”, but you want your copy to be editable.
+--
+-- @since 1.1.0
 
 copyDirRecur' :: (MonadIO m, MonadCatch m)
   => Path b0 Dir       -- ^ Source
@@ -418,6 +422,8 @@ copyDirRecurGen p src dest = do
 
 -- | Action returned by the traversal handler function. The action decides how
 -- the traversal will proceed further.
+--
+-- @since 1.2.0
 
 data WalkAction
   = WalkFinish                  -- ^ Finish the entire walk altogether
@@ -429,6 +435,8 @@ data WalkAction
 -- and the files in the directory are provided as arguments to the handler.
 --
 -- Detects and silently avoids any traversal loops in the directory tree.
+--
+-- @since 1.2.0
 
 walkDir
   :: (MonadIO m, MonadThrow m)
@@ -474,6 +482,8 @@ walkDir handler topdir =
 -- Both, the descend handler as well as the output writer can be used for side
 -- effects but keep in mind that the output writer runs before the descend
 -- handler.
+--
+-- @since 1.2.0
 
 walkDirAccum
   :: (MonadIO m, MonadThrow m, Monoid o)
@@ -702,6 +712,8 @@ type family AbsPath path where
 
 -- | Closed type family describing how to get relative version of given
 -- 'Path'.
+--
+-- @since 0.3.0
 
 type family RelPath path where
   RelPath (Path b File) = Path Rel File
@@ -757,6 +769,8 @@ class AnyPath path where
     => path -> m (AbsPath path)
 
   -- | Make a path relative to given directory.
+  --
+  -- @since 0.3.0
 
   makeRelative :: MonadThrow m
     => Path Abs Dir    -- ^ Base directory
@@ -764,6 +778,8 @@ class AnyPath path where
     -> m (RelPath path)
 
   -- | Make a path relative to current working directory.
+  --
+  -- @since 0.3.0
 
   makeRelativeToCurrentDir :: (MonadIO m, MonadThrow m)
     => path -> m (RelPath path)
@@ -790,6 +806,8 @@ instance AnyPath (Path b Dir) where
 
 -- | Append stringly-typed path to an absolute path and then canonicalize
 -- it.
+--
+-- @since 0.3.0
 
 resolveFile :: (MonadIO m, MonadThrow m)
   => Path Abs Dir      -- ^ Base directory
@@ -800,6 +818,8 @@ resolveFile b p = f (toFilePath b F.</> p) >>= parseAbsFile
 {-# INLINE resolveFile #-}
 
 -- | The same as 'resolveFile', but uses current working directory.
+--
+-- @since 0.3.0
 
 resolveFile' :: (MonadIO m, MonadThrow m)
   => FilePath          -- ^ Path to resolve
@@ -808,6 +828,8 @@ resolveFile' p = getCurrentDir >>= flip resolveFile p
 {-# INLINE resolveFile' #-}
 
 -- | The same as 'resolveFile', but for directories.
+--
+-- @since 0.3.0
 
 resolveDir :: (MonadIO m, MonadThrow m)
   => Path Abs Dir      -- ^ Base directory
@@ -818,6 +840,8 @@ resolveDir b p = f (toFilePath b F.</> p) >>= parseAbsDir
 {-# INLINE resolveDir #-}
 
 -- | The same as 'resolveDir', but uses current working directory.
+--
+-- @since 0.3.0
 
 resolveDir' :: (MonadIO m, MonadThrow m)
   => FilePath          -- ^ Path to resolve
@@ -993,6 +1017,8 @@ findFilesWith f (d:ds) file = do
 --
 -- Creates a new temporary file inside the given directory, making use of
 -- the template. The temporary file is deleted after use.
+--
+-- @since 0.2.0
 
 withTempFile :: (MonadIO m, MonadMask m)
   => Path b Dir        -- ^ Directory to create the file in
@@ -1008,6 +1034,8 @@ withTempFile path t action = do
 --
 -- Creates a new temporary directory inside the given directory, making use
 -- of the template. The temporary directory is deleted after use.
+--
+-- @since 0.2.0
 
 withTempDir :: (MonadIO m, MonadMask m)
   => Path b Dir        -- ^ Directory to create the file in
@@ -1023,6 +1051,8 @@ withTempDir path t action = do
 --
 -- Behaves exactly the same as 'withTempFile', except that the parent
 -- temporary directory will be that returned by 'getTempDir'.
+--
+-- @since 0.2.0
 
 withSystemTempFile :: (MonadIO m, MonadMask m)
   => String            -- ^ File name template, see 'openTempFile'
@@ -1036,6 +1066,8 @@ withSystemTempFile t action = getTempDir >>= \path ->
 --
 -- Behaves exactly the same as 'withTempDir', except that the parent
 -- temporary directory will be that returned by 'getTempDir'.
+--
+-- @since 0.2.0
 
 withSystemTempDir :: (MonadIO m, MonadMask m)
   => String            -- ^ Directory name template, see 'openTempFile'
@@ -1058,6 +1090,8 @@ withSystemTempDir t action = getTempDir >>= \path ->
 -- prevent this attack, but note that @O_EXCL@ is sometimes not supported on
 -- NFS filesystems, so if you rely on this behaviour it is best to use local
 -- filesystems only.
+--
+-- @since 0.2.0
 
 openTempFile :: (MonadIO m, MonadThrow m)
   => Path b Dir        -- ^ Directory to create file in
@@ -1077,6 +1111,8 @@ openTempFile path t = do
 -- usual under Microsoft operating systems, text mode treats control-Z as
 -- EOF. Binary mode turns off all special treatment of end-of-line and
 -- end-of-file characters.
+--
+-- @since 0.2.0
 
 openBinaryTempFile :: (MonadIO m, MonadThrow m)
   => Path b Dir        -- ^ Directory to create file in
@@ -1092,6 +1128,8 @@ openBinaryTempFile path t = do
 --
 -- The directory is created with permissions such that only the current user
 -- can read\/write it.
+--
+-- @since 0.2.0
 
 createTempDir :: (MonadIO m, MonadThrow m)
   => Path b Dir        -- ^ Directory to create file in
@@ -1130,6 +1168,8 @@ isLocationOccupied path = do
 -- | If argument of the function throws a
 -- 'System.IO.Error.doesNotExistErrorType', 'Nothing' is returned (other
 -- exceptions propagate). Otherwise the result is returned inside a 'Just'.
+--
+-- @since 0.3.0
 
 forgivingAbsence :: (MonadIO m, MonadCatch m) => m a -> m (Maybe a)
 forgivingAbsence f = catchIf isDoesNotExistError
@@ -1138,6 +1178,8 @@ forgivingAbsence f = catchIf isDoesNotExistError
 {-# INLINE forgivingAbsence #-}
 
 -- | The same as 'forgivingAbsence', but ignores result.
+--
+-- @since 0.3.1
 
 ignoringAbsence :: (MonadIO m, MonadCatch m) => m a -> m ()
 ignoringAbsence = liftM (const ()) . forgivingAbsence

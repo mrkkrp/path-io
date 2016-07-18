@@ -155,6 +155,7 @@ import Data.Monoid (Monoid)
 
 createDir :: MonadIO m => Path b Dir -> m ()
 createDir = liftD D.createDirectory
+{-# INLINE createDir #-}
 
 -- | @'createDirIfMissing' parents dir@ creates a new directory @dir@ if it
 -- doesn\'t exist. If the first argument is 'True' the function will also
@@ -165,6 +166,7 @@ createDirIfMissing :: MonadIO m
   -> Path b Dir        -- ^ The path to the directory you want to make
   -> m ()
 createDirIfMissing p = liftD (D.createDirectoryIfMissing p)
+{-# INLINE createDirIfMissing #-}
 
 -- | Ensure that directory exists creating it and its parent directories if
 -- necessary. This is just a handy shortcut:
@@ -173,6 +175,7 @@ createDirIfMissing p = liftD (D.createDirectoryIfMissing p)
 
 ensureDir :: MonadIO m => Path b Dir -> m ()
 ensureDir = createDirIfMissing True
+{-# INLINE ensureDir #-}
 
 -- | @'removeDir' dir@ removes an existing directory @dir@. The
 -- implementation may specify additional constraints which must be satisfied
@@ -214,6 +217,7 @@ ensureDir = createDirIfMissing True
 
 removeDir :: MonadIO m => Path b Dir -> m ()
 removeDir = liftD D.removeDirectory
+{-# INLINE removeDir #-}
 
 -- | @'removeDirRecur' dir@ removes an existing directory @dir@ together
 -- with its contents and subdirectories. Within this directory, symbolic
@@ -221,6 +225,7 @@ removeDir = liftD D.removeDirectory
 
 removeDirRecur :: MonadIO m => Path b Dir -> m ()
 removeDirRecur = liftD D.removeDirectoryRecursive
+{-# INLINE removeDirRecur #-}
 
 -- |@'renameDir' old new@ changes the name of an existing directory from
 -- @old@ to @new@. If the @new@ directory already exists, it is atomically
@@ -273,6 +278,7 @@ renameDir :: MonadIO m
   -> Path b1 Dir       -- ^ New name
   -> m ()
 renameDir = liftD2 D.renameDirectory
+{-# INLINE renameDir #-}
 
 -- | @'listDir' dir@ returns a list of /all/ entries in @dir@ without the
 -- special entries (@.@ and @..@). Entries are not sorted.
@@ -325,6 +331,7 @@ listDirRecur :: (MonadIO m, MonadThrow m)
   => Path b Dir        -- ^ Directory to list
   -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
 listDirRecur = walkDirAccum Nothing (\_ d f -> return (d, f))
+{-# INLINE listDirRecur #-}
 
 -- | Copy directory recursively. This is not smart about symbolic links, but
 -- tries to preserve permissions when possible. If destination directory
@@ -337,6 +344,7 @@ copyDirRecur :: (MonadIO m, MonadCatch m)
   -> Path b1 Dir       -- ^ Destination
   -> m ()
 copyDirRecur = copyDirRecurGen True
+{-# INLINE copyDirRecur #-}
 
 -- | The same as 'copyDirRecur', but it does not preserve directory
 -- permissions. This may be useful, for example, if directory you want to
@@ -347,6 +355,7 @@ copyDirRecur' :: (MonadIO m, MonadCatch m)
   -> Path b1 Dir       -- ^ Destination
   -> m ()
 copyDirRecur' = copyDirRecurGen False
+{-# INLINE copyDirRecur' #-}
 
 -- | Generic version of 'copyDirRecur'. The first argument controls whether
 -- to preserve directory permissions or not.
@@ -519,6 +528,7 @@ walkDirAccum dHandler writer topdir =
 
 getCurrentDir :: (MonadIO m, MonadThrow m) => m (Path Abs Dir)
 getCurrentDir = liftIO D.getCurrentDirectory >>= parseAbsDir
+{-# INLINE getCurrentDir #-}
 
 -- | Change the working directory to the given path.
 --
@@ -555,6 +565,7 @@ getCurrentDir = liftIO D.getCurrentDirectory >>= parseAbsDir
 
 setCurrentDir :: MonadIO m => Path b Dir -> m ()
 setCurrentDir = liftD D.setCurrentDirectory
+{-# INLINE setCurrentDir #-}
 
 -- | Run an 'IO' action with the given working directory and restore the
 -- original working directory afterwards, even if the given action fails due
@@ -594,6 +605,7 @@ withCurrentDir dir action =
 
 getHomeDir :: (MonadIO m, MonadThrow m) => m (Path Abs Dir)
 getHomeDir = liftIO D.getHomeDirectory >>= resolveDir'
+{-# INLINE getHomeDir #-}
 
 -- | Obtain the path to a special directory for storing user-specific
 -- application data (traditional Unix location).
@@ -623,6 +635,7 @@ getAppUserDataDir :: (MonadIO m, MonadThrow m)
   => String            -- ^ Name of application (used in path construction)
   -> m (Path Abs Dir)
 getAppUserDataDir = (>>= parseAbsDir) . liftIO . D.getAppUserDataDirectory
+{-# INLINE getAppUserDataDir #-}
 
 -- | Returns the current user's document directory.
 --
@@ -645,6 +658,7 @@ getAppUserDataDir = (>>= parseAbsDir) . liftIO . D.getAppUserDataDirectory
 
 getUserDocsDir :: (MonadIO m, MonadThrow m) => m (Path Abs Dir)
 getUserDocsDir = liftIO D.getUserDocumentsDirectory >>= parseAbsDir
+{-# INLINE getUserDocsDir #-}
 
 -- | Returns the current directory for temporary files.
 --
@@ -674,6 +688,7 @@ getUserDocsDir = liftIO D.getUserDocumentsDirectory >>= parseAbsDir
 
 getTempDir :: (MonadIO m, MonadThrow m) => m (Path Abs Dir)
 getTempDir = liftIO D.getTemporaryDirectory >>= resolveDir'
+{-# INLINE getTempDir #-}
 
 ----------------------------------------------------------------------------
 -- Path transformation
@@ -755,15 +770,23 @@ class AnyPath path where
 
 instance AnyPath (Path b File) where
   canonicalizePath = liftD D.canonicalizePath >=> parseAbsFile
+  {-# INLINE canonicalizePath #-}
   makeAbsolute     = liftD D.makeAbsolute     >=> parseAbsFile
+  {-# INLINE makeAbsolute #-}
   makeRelative b p = parseRelFile (F.makeRelative (toFilePath b) (toFilePath p))
+  {-# INLINE makeRelative #-}
   makeRelativeToCurrentDir p = getCurrentDir >>= flip makeRelative p
+  {-# INLINE makeRelativeToCurrentDir #-}
 
 instance AnyPath (Path b Dir) where
   canonicalizePath = liftD D.canonicalizePath >=> parseAbsDir
+  {-# INLINE canonicalizePath #-}
   makeAbsolute     = liftD D.makeAbsolute     >=> parseAbsDir
+  {-# INLINE makeAbsolute #-}
   makeRelative b p = parseRelDir (F.makeRelative (toFilePath b) (toFilePath p))
+  {-# INLINE makeRelative #-}
   makeRelativeToCurrentDir p = getCurrentDir >>= flip makeRelative p
+  {-# INLINE makeRelativeToCurrentDir #-}
 
 -- | Append stringly-typed path to an absolute path and then canonicalize
 -- it.
@@ -774,6 +797,7 @@ resolveFile :: (MonadIO m, MonadThrow m)
   -> m (Path Abs File)
 resolveFile b p = f (toFilePath b F.</> p) >>= parseAbsFile
   where f = liftIO . D.canonicalizePath
+{-# INLINE resolveFile #-}
 
 -- | The same as 'resolveFile', but uses current working directory.
 
@@ -781,6 +805,7 @@ resolveFile' :: (MonadIO m, MonadThrow m)
   => FilePath          -- ^ Path to resolve
   -> m (Path Abs File)
 resolveFile' p = getCurrentDir >>= flip resolveFile p
+{-# INLINE resolveFile' #-}
 
 -- | The same as 'resolveFile', but for directories.
 
@@ -790,6 +815,7 @@ resolveDir :: (MonadIO m, MonadThrow m)
   -> m (Path Abs Dir)
 resolveDir b p = f (toFilePath b F.</> p) >>= parseAbsDir
   where f = liftIO . D.canonicalizePath
+{-# INLINE resolveDir #-}
 
 -- | The same as 'resolveDir', but uses current working directory.
 
@@ -797,6 +823,7 @@ resolveDir' :: (MonadIO m, MonadThrow m)
   => FilePath          -- ^ Path to resolve
   -> m (Path Abs Dir)
 resolveDir' p = getCurrentDir >>= flip resolveDir p
+{-# INLINE resolveDir' #-}
 
 ----------------------------------------------------------------------------
 -- Actions on files
@@ -834,6 +861,7 @@ resolveDir' p = getCurrentDir >>= flip resolveDir p
 
 removeFile :: MonadIO m => Path b File -> m ()
 removeFile = liftD D.removeFile
+{-# INLINE removeFile #-}
 
 -- | @'renameFile' old new@ changes the name of an existing file system
 -- object from /old/ to /new/. If the /new/ object already exists, it is
@@ -881,6 +909,7 @@ renameFile :: MonadIO m
   -> Path b1 File      -- ^ New location
   -> m ()
 renameFile = liftD2 D.renameFile
+{-# INLINE renameFile #-}
 
 -- | @'copyFile' old new@ copies the existing file from @old@ to @new@. If
 -- the @new@ file already exists, it is atomically replaced by the @old@
@@ -892,6 +921,7 @@ copyFile :: MonadIO m
   -> Path b1 File      -- ^ Where to put copy
   -> m ()
 copyFile = liftD2 D.copyFile
+{-# INLINE copyFile #-}
 
 -- | Given an executable file name, search for such file in the directories
 -- listed in system @PATH@. The returned value is the path to the found
@@ -912,6 +942,7 @@ findExecutable :: MonadIO m
   => Path Rel File     -- ^ Executable file name
   -> m (Maybe (Path Abs File)) -- ^ Path to found executable
 findExecutable = liftM (>>= parseAbsFile) . liftD D.findExecutable
+{-# INLINE findExecutable #-}
 
 -- | Search through the given set of directories for the given file.
 
@@ -935,6 +966,7 @@ findFiles :: (MonadIO m, MonadThrow m)
   -> Path Rel File     -- ^ Filename of interest
   -> m [Path Abs File] -- ^ Absolute paths to all found files
 findFiles = findFilesWith (const (return True))
+{-# INLINE findFiles #-}
 
 -- | Search through the given set of directories for the given file and with
 -- the given property (usually permissions) and return a list of paths where
@@ -1076,6 +1108,7 @@ createTempDir path t = makeAbsolute path >>= \apath ->
 
 doesFileExist :: MonadIO m => Path b File -> m Bool
 doesFileExist = liftD D.doesFileExist
+{-# INLINE doesFileExist #-}
 
 -- | The operation 'doesDirExist' returns 'True' if the argument file exists
 -- and is either a directory or a symbolic link to a directory, and 'False'
@@ -1083,6 +1116,7 @@ doesFileExist = liftD D.doesFileExist
 
 doesDirExist :: MonadIO m => Path b Dir -> m Bool
 doesDirExist = liftD D.doesDirectoryExist
+{-# INLINE doesDirExist #-}
 
 -- | Check if there is a file or directory on specified path.
 
@@ -1101,11 +1135,13 @@ forgivingAbsence :: (MonadIO m, MonadCatch m) => m a -> m (Maybe a)
 forgivingAbsence f = catchIf isDoesNotExistError
   (Just `liftM` f)
   (const $ return Nothing)
+{-# INLINE forgivingAbsence #-}
 
 -- | The same as 'forgivingAbsence', but ignores result.
 
 ignoringAbsence :: (MonadIO m, MonadCatch m) => m a -> m ()
 ignoringAbsence = liftM (const ()) . forgivingAbsence
+{-# INLINE ignoringAbsence #-}
 
 ----------------------------------------------------------------------------
 -- Permissions
@@ -1122,6 +1158,7 @@ ignoringAbsence = liftM (const ()) . forgivingAbsence
 
 getPermissions :: MonadIO m => Path b t -> m D.Permissions
 getPermissions = liftD D.getPermissions
+{-# INLINE getPermissions #-}
 
 -- | The 'setPermissions' operation sets the permissions for the file or
 -- directory.
@@ -1135,6 +1172,7 @@ getPermissions = liftD D.getPermissions
 
 setPermissions :: MonadIO m => Path b t -> D.Permissions -> m ()
 setPermissions = liftD2' D.setPermissions
+{-# INLINE setPermissions #-}
 
 -- | Set permissions for the object found on second given path so they match
 -- permissions of the object on the first path.
@@ -1144,6 +1182,7 @@ copyPermissions :: MonadIO m
   -> Path b1 t1        -- ^ What to modify
   -> m ()
 copyPermissions = liftD2 D.copyPermissions
+{-# INLINE copyPermissions #-}
 
 ----------------------------------------------------------------------------
 -- Timestamps
@@ -1165,6 +1204,7 @@ copyPermissions = liftD2 D.copyPermissions
 
 getAccessTime :: MonadIO m => Path b t -> m UTCTime
 getAccessTime = liftD D.getAccessTime
+{-# INLINE getAccessTime #-}
 
 -- | Change the time at which the file or directory was last accessed.
 --
@@ -1190,6 +1230,7 @@ getAccessTime = liftD D.getAccessTime
 
 setAccessTime :: MonadIO m => Path b t -> UTCTime -> m ()
 setAccessTime = liftD2' D.setAccessTime
+{-# INLINE setAccessTime #-}
 
 -- | Change the time at which the file or directory was last modified.
 --
@@ -1215,7 +1256,7 @@ setAccessTime = liftD2' D.setAccessTime
 
 setModificationTime :: MonadIO m => Path b t -> UTCTime -> m ()
 setModificationTime = liftD2' D.setAccessTime
-
+{-# INLINE setModificationTime #-}
 #endif
 
 -- | Obtain the time at which the file or directory was last modified.
@@ -1233,6 +1274,7 @@ setModificationTime = liftD2' D.setAccessTime
 
 getModificationTime :: MonadIO m => Path b t -> m UTCTime
 getModificationTime = liftD D.getModificationTime
+{-# INLINE getModificationTime #-}
 
 ----------------------------------------------------------------------------
 -- Helpers
@@ -1245,6 +1287,7 @@ liftD :: MonadIO m
   -> Path b t          -- ^ 'Path' argument
   -> m a               -- ^ Lifted action
 liftD m = liftIO . m . toFilePath
+{-# INLINE liftD #-}
 
 -- | Similar to 'liftD' for functions with arity 2.
 
@@ -1254,6 +1297,7 @@ liftD2 :: MonadIO m
   -> Path b1 t1        -- ^ Second 'Path' argument
   -> m a
 liftD2 m a b = liftIO $ m (toFilePath a) (toFilePath b)
+{-# INLINE liftD2 #-}
 
 -- | Similar to 'liftD2', but allows to pass second argument of arbitrary
 -- type.
@@ -1264,6 +1308,7 @@ liftD2' :: MonadIO m
   -> v                 -- ^ Second argument
   -> m a
 liftD2' m a v = liftIO $ m (toFilePath a) v
+{-# INLINE liftD2' #-}
 
 -- | Perform specified action ignoring IO exceptions it may throw.
 

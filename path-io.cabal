@@ -43,7 +43,7 @@ category:             System, Filesystem
 synopsis:             Interface to ‘directory’ package for users of ‘path’
 build-type:           Simple
 description:          Interface to ‘directory’ package for users of ‘path’.
-extra-source-files:   CHANGELOG.md
+extra-doc-files:      CHANGELOG.md
                     , README.md
 
 flag dev

@@ -430,9 +430,10 @@ data WalkAction
   | WalkExclude [Path Abs Dir]  -- ^ List of sub-directories to exclude from
                                 -- descending
 
--- | Traverse a directory tree, calling a handler function at each directory
--- node traversed. The absolute paths of the parent directory, sub-directories
--- and the files in the directory are provided as arguments to the handler.
+-- | Traverse a directory tree using depth first pre-order traversal, calling a
+-- handler function at each directory node traversed. The absolute paths of the
+-- parent directory, sub-directories and the files in the directory are
+-- provided as arguments to the handler.
 --
 -- Detects and silently avoids any traversal loops in the directory tree.
 --

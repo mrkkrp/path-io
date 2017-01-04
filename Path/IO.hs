@@ -41,6 +41,10 @@ module Path.IO
   , getAppUserDataDir
   , getUserDocsDir
   , getTempDir
+#if MIN_VERSION_directory(1,2,3)
+  , getXdgDir
+  , XdgDirectory(..)
+#endif
     -- * Path transformation
   , AbsPath
   , RelPath
@@ -107,6 +111,9 @@ import Path
 import System.IO (Handle)
 import System.IO.Error (isDoesNotExistError)
 import System.PosixCompat.Files (deviceID, fileID, getFileStatus)
+#if MIN_VERSION_directory(1,2,3)
+import System.Directory (XdgDirectory)
+#endif
 import qualified Data.Set         as S
 import qualified System.Directory as D
 import qualified System.FilePath  as F
@@ -699,6 +706,26 @@ getUserDocsDir = liftIO D.getUserDocumentsDirectory >>= parseAbsDir
 getTempDir :: (MonadIO m, MonadThrow m) => m (Path Abs Dir)
 getTempDir = liftIO D.getTemporaryDirectory >>= resolveDir'
 {-# INLINE getTempDir #-}
+
+#if MIN_VERSION_directory(1,2,3)
+-- | Obtain the paths to special directories for storing user-specific
+--   application data, configuration, and cache files, conforming to the
+--   <http://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html XDG Base Directory Specification>.
+--   Compared with 'getAppUserDataDir', this function provides a more
+--   fine-grained hierarchy as well as greater flexibility for the user.
+--
+-- It also works on Windows, although in that case 'XdgData' and 'XdgConfig'
+-- will map to the same directory.
+--
+-- The second argument is usually a path based on the name of the application.
+-- If it is 'Nothing', only the base path is returned.
+--
+-- Note: The directory may not actually exist, in which case you would need
+-- to create it with file mode @700@ (i.e. only accessible by the owner).
+getXdgDir :: (MonadIO m, MonadThrow m) => XdgDirectory -> Maybe (Path Rel Dir) -> m (Path Abs Dir)
+getXdgDir xdgDir suffix = liftIO (D.getXdgDirectory xdgDir $ maybe "" toFilePath suffix) >>= parseAbsDir
+{-# INLINE getXdgDir #-}
+#endif
 
 ----------------------------------------------------------------------------
 -- Path transformation

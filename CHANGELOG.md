@@ -1,6 +1,10 @@
 ## Path IO 1.2.1
 
+* Allowed `directory-1.3.0.0`.
+
 * Added `getXdgDir`. Only available of `directory-1.2.3.0` or later is used.
+
+* Various cosmetic improvements.
 
 ## Path IO 1.2.0
 

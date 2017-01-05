@@ -1,3 +1,7 @@
+## Path IO 1.2.1
+
+* Added `getXdgDir`. Only available of `directory-1.2.3.0` or later is used.
+
 ## Path IO 1.2.0
 
 * Added `walkDir` function to traverse a directory tree with a handler.

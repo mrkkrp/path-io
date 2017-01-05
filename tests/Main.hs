@@ -64,11 +64,16 @@ main = hspec . around withSandbox $ do
   beforeWith populatedCyclicDir $
     describe "listDirRecur Cyclic" listDirRecurCyclicSpec
 #endif
-  describe "getCurrentDir"  getCurrentDirSpec
-  describe "setCurrentDir"  setCurrentDirSpec
-  describe "withCurrentDir" withCurrentDirSpec
-  describe "getHomeDir"     getHomeDirSpec
-  describe "getTempDir"     getTempDirSpec
+  describe "getCurrentDir"    getCurrentDirSpec
+  describe "setCurrentDir"    setCurrentDirSpec
+  describe "withCurrentDir"   withCurrentDirSpec
+  describe "getHomeDir"       getHomeDirSpec
+  describe "getTempDir"       getTempDirSpec
+#if MIN_VERSION_directory(1,2,3)
+  describe "getXdgDir Data"   getXdgDataDirSpec
+  describe "getXdgDir Config" getXdgConfigDirSpec
+  describe "getXdgDir Cache"  getXdgCacheDirSpec
+#endif
 
 listDirSpec :: SpecWith (Path Abs Dir)
 listDirSpec = it "lists directory" $ \dir ->
@@ -191,6 +196,41 @@ getTempDirSpec =
       getTempDir `shouldReturn` dir
       unsetEnv evar
   where evar = "TMPDIR"
+
+#if MIN_VERSION_directory(1,2,3)
+getXdgDataDirSpec :: SpecWith (Path Abs Dir)
+getXdgDataDirSpec =
+  it "XDG data dir is influenced by environment variable XDG_DATA_HOME" $ \dir ->
+    flip finally (unsetEnv evar) $ do
+      setEnv evar (toFilePath dir)
+      getXdgDir XdgData (Just name) `shouldReturn` (dir </> name)
+      getXdgDir XdgData Nothing `shouldReturn` dir
+      unsetEnv evar
+  where evar = "XDG_DATA_HOME"
+        name = $(mkRelDir "test")
+
+getXdgConfigDirSpec :: SpecWith (Path Abs Dir)
+getXdgConfigDirSpec =
+  it "XDG config dir is influenced by environment variable XDG_CONFIG_HOME" $ \dir ->
+    flip finally (unsetEnv evar) $ do
+      setEnv evar (toFilePath dir)
+      getXdgDir XdgConfig (Just name) `shouldReturn` (dir </> name)
+      getXdgDir XdgConfig Nothing `shouldReturn` dir
+      unsetEnv evar
+  where evar = "XDG_CONFIG_HOME"
+        name = $(mkRelDir "test")
+
+getXdgCacheDirSpec :: SpecWith (Path Abs Dir)
+getXdgCacheDirSpec =
+  it "XDG cache dir is influenced by environment variable XDG_CACHE_HOME" $ \dir ->
+    flip finally (unsetEnv evar) $ do
+      setEnv evar (toFilePath dir)
+      getXdgDir XdgCache (Just name) `shouldReturn` (dir </> name)
+      getXdgDir XdgCache Nothing `shouldReturn` dir
+      unsetEnv evar
+  where evar = "XDG_CACHE_HOME"
+        name = $(mkRelDir "test")
+#endif
 
 ----------------------------------------------------------------------------
 -- Helpers

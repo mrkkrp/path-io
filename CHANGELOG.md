@@ -1,3 +1,7 @@
+## Path IO 1.2.3
+
+* Allowed `time-1.7`.
+
 ## Path IO 1.2.2
 
 * Fixed a bug in `setModificationTime` function that previously called

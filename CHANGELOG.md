@@ -1,3 +1,12 @@
+## Path IO 1.2.2
+
+* Fixed a bug in `setModificationTime` function that previously called
+  `setAccessTime` instead of `setModificationTime` from `directory`.
+
+* Added notes to all pieces of API that are conditional (some functions are
+  only available if `directory-1.2.3.0` or later is used, now it's mentioned
+  for every such function explicitely).
+
 ## Path IO 1.2.1
 
 * Allowed `directory-1.3.0.0`.

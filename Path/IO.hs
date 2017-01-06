@@ -1332,7 +1332,7 @@ setAccessTime = liftD2' D.setAccessTime
 --   access time.
 
 setModificationTime :: MonadIO m => Path b t -> UTCTime -> m ()
-setModificationTime = liftD2' D.setAccessTime
+setModificationTime = liftD2' D.setModificationTime
 {-# INLINE setModificationTime #-}
 #endif
 

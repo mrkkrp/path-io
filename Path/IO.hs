@@ -1278,6 +1278,9 @@ copyPermissions = liftD2 D.copyPermissions
 -- Caveat for POSIX systems: This function returns a timestamp with
 -- sub-second resolution only if this package is compiled against
 -- @unix-2.6.0.0@ or later and the underlying filesystem supports them.
+--
+-- Note: this is a piece of conditional API, only available if
+-- @directory-1.2.3.0@ or later is used.
 
 getAccessTime :: MonadIO m => Path b t -> m UTCTime
 getAccessTime = liftD D.getAccessTime
@@ -1304,6 +1307,9 @@ getAccessTime = liftD D.getAccessTime
 --   function would not be able to set timestamps with sub-second
 --   resolution. In this case, there would also be loss of precision in the
 --   modification time.
+--
+-- Note: this is a piece of conditional API, only available if
+-- @directory-1.2.3.0@ or later is used.
 
 setAccessTime :: MonadIO m => Path b t -> UTCTime -> m ()
 setAccessTime = liftD2' D.setAccessTime
@@ -1330,6 +1336,9 @@ setAccessTime = liftD2' D.setAccessTime
 --   function would not be able to set timestamps with sub-second
 --   resolution. In this case, there would also be loss of precision in the
 --   access time.
+--
+-- Note: this is a piece of conditional API, only available if
+-- @directory-1.2.3.0@ or later is used.
 
 setModificationTime :: MonadIO m => Path b t -> UTCTime -> m ()
 setModificationTime = liftD2' D.setModificationTime

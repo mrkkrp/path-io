@@ -1,5 +1,8 @@
 ## Path IO 1.2.3
 
+* Add `findFileWith` API that stops after finding the first path with
+  the given file name (compare with `findFilesWith`).
+
 * Allowed `time-1.7`.
 
 ## Path IO 1.2.2

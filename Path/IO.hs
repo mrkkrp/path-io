@@ -61,6 +61,7 @@ module Path.IO
   , findFile
   , findFiles
   , findFilesWith
+  , findFileWith
     -- * Temporary files and directories
   , withTempFile
   , withTempDir
@@ -1036,14 +1037,60 @@ findFilesWith :: (MonadIO m, MonadThrow m)
   -> [Path b Dir]      -- ^ Set of directories to search in
   -> Path Rel File     -- ^ Filename of interest
   -> m [Path Abs File] -- ^ Absolute paths to all found files
-findFilesWith _ [] _ = return []
-findFilesWith f (d:ds) file = do
-  bfile <- (</> file) `liftM` makeAbsolute d
-  exist <- doesFileExist file
-  b <- if exist then f bfile else return False
-  if b
-    then (bfile:) `liftM` findFilesWith f ds file
-    else findFilesWith f ds file
+findFilesWith f ds name = listTToList (findFilesWithLazy f ds name)
+
+-- | Search through a given list of directories for a file that has the given
+-- name and satisfies the given predicate and return the path of the first
+-- occurrence.  The directories are checked in a left-to-right order.
+--
+-- This is essentially a more performant version of 'findFilesWith' that
+-- always returns the first result, if any.  Details can be found in the
+-- documentation of 'findFilesWith'.
+--
+-- @since 1.2.4
+findFileWith :: (MonadIO m, MonadThrow m)
+  => (Path Abs File -> m Bool) -- ^ How to test the files
+  -> [Path b Dir]              -- ^ Set of directories to search in
+  -> Path Rel File             -- ^ Filename of interest
+  -> m (Maybe (Path Abs File)) -- ^ Result file found
+findFileWith f ds name = listTHead (findFilesWithLazy f ds name)
+
+-- | A generator with side-effects.
+newtype ListT m a = ListT (m (Maybe (a, ListT m a)))
+
+listTHead :: Functor m => ListT m a -> m (Maybe a)
+listTHead (ListT m) = (fst <$>) <$> m
+
+listTToList :: Monad m => ListT m a -> m [a]
+listTToList (ListT m) = do
+  mx <- m
+  case mx of
+    Nothing -> return []
+    Just (x, m') -> do
+      xs <- listTToList m'
+      return (x : xs)
+
+andM :: Monad m => m Bool -> m Bool -> m Bool
+andM mx my = do
+  x <- mx
+  if x
+    then my
+    else return x
+
+findFilesWithLazy :: (MonadIO m, MonadThrow m)
+  => (Path Abs File -> m Bool) -- ^ How to test the files
+  -> [Path b Dir]              -- ^ Directories to search in
+  -> Path Rel File             -- ^ Filename of interest
+  -> ListT m (Path Abs File)
+findFilesWithLazy f dirs path = ListT (find dirs)
+  where
+    find []       = return Nothing
+    find (d : ds) = do
+      p  <- (</> path) `liftM` makeAbsolute d
+      found <- doesFileExist p `andM` f p
+      if found
+        then return (Just (p, ListT (find ds)))
+        else find ds
 
 ----------------------------------------------------------------------------
 -- Temporary files and directories

@@ -7,8 +7,8 @@
 -- Stability   :  experimental
 -- Portability :  portable
 --
--- This module provides interface to "System.Directory" for users of "Path"
--- module. It also implements commonly used primitives like recursive
+-- This module provides an interface to "System.Directory" for users of the
+-- "Path" module. It also implements commonly used primitives like recursive
 -- scanning and copying of directories.
 
 {-# LANGUAGE CPP               #-}
@@ -151,10 +151,9 @@ import Data.Monoid (Monoid)
 -- There is no path to the directory.
 -- @[ENOENT, ENOTDIR]@
 --
--- * 'ResourceExhausted'
--- Insufficient resources (virtual memory, process file descriptors,
--- physical disk space, etc.) are available to perform the operation.
--- @[EDQUOT, ENOSPC, ENOMEM, EMLINK]@
+-- * 'ResourceExhausted' Insufficient resources (virtual memory, process
+-- file descriptors, physical disk space, etc.) are available to perform the
+-- operation. @[EDQUOT, ENOSPC, ENOMEM, EMLINK]@
 --
 -- * 'InappropriateType'
 -- The path refers to an existing non-directory object.
@@ -165,7 +164,7 @@ createDir = liftD D.createDirectory
 {-# INLINE createDir #-}
 
 -- | @'createDirIfMissing' parents dir@ creates a new directory @dir@ if it
--- doesn\'t exist. If the first argument is 'True' the function will also
+-- doesn't exist. If the first argument is 'True' the function will also
 -- create all parent directories if they are missing.
 
 createDirIfMissing :: MonadIO m
@@ -175,8 +174,8 @@ createDirIfMissing :: MonadIO m
 createDirIfMissing p = liftD (D.createDirectoryIfMissing p)
 {-# INLINE createDirIfMissing #-}
 
--- | Ensure that directory exists creating it and its parent directories if
--- necessary. This is just a handy shortcut:
+-- | Ensure that a directory exists creating it and its parent directories
+-- if necessary. This is just a handy shortcut:
 --
 -- > ensureDir = createDirIfMissing True
 --
@@ -189,7 +188,7 @@ ensureDir = createDirIfMissing True
 -- | @'removeDir' dir@ removes an existing directory @dir@. The
 -- implementation may specify additional constraints which must be satisfied
 -- before a directory can be removed (e.g. the directory has to be empty, or
--- may not be in use by other processes).  It is not legal for an
+-- may not be in use by other processes). It is not legal for an
 -- implementation to partially remove a directory unless the entire
 -- directory is removed. A conformant implementation need not support
 -- directory removal in all situations (e.g. removal of the root directory).
@@ -405,30 +404,31 @@ copyDirRecurGen p src dest = do
 --
 -- The callback handler interface is designed to be highly flexible. There are
 -- two possible alternative ways to control the traversal:
+--
 -- * In the context of the parent dir, decide which subdirs to descend into.
 -- * In the context of the subdir, decide whether to traverse the subdir or not.
 --
--- We choose the first approach here since it is more flexible and can achieve
--- everything that the second one can. The additional benefit with this is that
--- we can use the parent dir context efficiently instead of each child looking
--- at the parent context independently.
+-- We choose the first approach here since it is more flexible and can
+-- achieve everything that the second one can. The additional benefit with
+-- this is that we can use the parent dir context efficiently instead of
+-- each child looking at the parent context independently.
 --
--- To control which subdirs to descend we use a WalkExclude API instead of a
--- WalkInclude type of API so that the handlers cannot accidentally ask us to
--- descend a dir which is not a subdir of the directory being walked.
+-- To control which subdirs to descend we use a 'WalkExclude' API instead of
+-- a “WalkInclude” type of API so that the handlers cannot accidentally ask
+-- us to descend a dir which is not a subdir of the directory being walked.
 --
 -- Avoiding Traversal Loops:
 --
--- There can be loops in the path being traversed due to subdirectory symlinks
--- or filesystem corruptions can cause loops by creating directory hardlinks.
--- Also, if the filesystem is changing while we are traversing then we might
--- be going in loops due to the changes.
+-- There can be loops in the path being traversed due to subdirectory
+-- symlinks or filesystem corruptions can cause loops by creating directory
+-- hardlinks. Also, if the filesystem is changing while we are traversing
+-- then we might be going in loops due to the changes.
 --
 -- We record the path we are coming from to detect the loops. If we end up
 -- traversing the same directory again we are in a loop.
 
--- | Action returned by the traversal handler function. The action decides how
--- the traversal will proceed further.
+-- | Action returned by the traversal handler function. The action decides
+-- how the traversal will proceed further.
 --
 -- @since 1.2.0
 
@@ -437,10 +437,10 @@ data WalkAction
   | WalkExclude [Path Abs Dir]  -- ^ List of sub-directories to exclude from
                                 -- descending
 
--- | Traverse a directory tree using depth first pre-order traversal, calling a
--- handler function at each directory node traversed. The absolute paths of the
--- parent directory, sub-directories and the files in the directory are
--- provided as arguments to the handler.
+-- | Traverse a directory tree using depth first pre-order traversal,
+-- calling a handler function at each directory node traversed. The absolute
+-- paths of the parent directory, sub-directories and the files in the
+-- directory are provided as arguments to the handler.
 --
 -- Detects and silently avoids any traversal loops in the directory tree.
 --
@@ -483,13 +483,13 @@ walkDir handler topdir =
         then Nothing
         else Just (S.insert ufid traversed)
 
--- | Similar to 'walkDir' but accepts a 'Monoid' returning, output
--- writer as well. Values returned by the output writer invocations are
--- accumulated and returned.
+-- | Similar to 'walkDir' but accepts a 'Monoid' returning, output writer as
+-- well. Values returned by the output writer invocations are accumulated
+-- and returned.
 --
--- Both, the descend handler as well as the output writer can be used for side
--- effects but keep in mind that the output writer runs before the descend
--- handler.
+-- Both, the descend handler as well as the output writer can be used for
+-- side effects but keep in mind that the output writer runs before the
+-- descend handler.
 --
 -- @since 1.2.0
 
@@ -754,7 +754,8 @@ type family RelPath path where
   RelPath (Path b File) = Path Rel File
   RelPath (Path b Dir)  = Path Rel Dir
 
--- | Class of things ('Path's) that can be canonicalized and made absolute.
+-- | Class of things ('Path's) that can be canonicalized, made absolute, and
+-- made relative to a some base directory.
 
 class AnyPath path where
 
@@ -787,8 +788,8 @@ class AnyPath path where
   -- /Known bug(s)/: on Windows, the function does not resolve symbolic
   -- links.
   --
-  -- Please note that before version 1.2.3.0 of @directory@ package, this
-  -- function had unpredictable behavior on non-existent paths.
+  -- Please note that before version 1.2.3.0 of the @directory@ package,
+  -- this function had unpredictable behavior on non-existent paths.
 
   canonicalizePath :: (MonadIO m, MonadThrow m)
     => path -> m (AbsPath path)
@@ -1158,7 +1159,7 @@ openBinaryTempFile path t = do
   (tfile, h) <- liftD2' T.openBinaryTempFile apath t
   (,h) `liftM` parseAbsFile tfile
 
--- | Create temporary directory. The created directory isn't deleted
+-- | Create a temporary directory. The created directory isn't deleted
 -- automatically, so you need to delete it manually.
 --
 -- The directory is created with permissions such that only the current user
@@ -1396,7 +1397,7 @@ liftD2' :: MonadIO m
 liftD2' m a v = liftIO $ m (toFilePath a) v
 {-# INLINE liftD2' #-}
 
--- | Perform specified action ignoring IO exceptions it may throw.
+-- | Perform an action ignoring IO exceptions it may throw.
 
 ignoringIOErrors :: MonadCatch m => m () -> m ()
 ignoringIOErrors ioe = ioe `catch` handler

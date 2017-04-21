@@ -74,6 +74,8 @@ module Path.IO
   , doesDirExist
   , isLocationOccupied
   , forgivingAbsence
+  , forgivingAbsenceDefault
+  , forgivingAbsenceMonoid
   , ignoringAbsence
     -- * Permissions
   , D.Permissions
@@ -1212,6 +1214,20 @@ forgivingAbsence f = catchIf isDoesNotExistError
   (Just `liftM` f)
   (const $ return Nothing)
 {-# INLINE forgivingAbsence #-}
+
+-- | Like 'forgivingAbsence' but return a default value instead of 'Nothing'.
+forgivingAbsenceDefault :: (MonadIO m, MonadCatch m) => a -> m a -> m a
+forgivingAbsenceDefault d f = do
+    mr <- forgivingAbsence f
+    pure $ case mr of
+         Nothing -> d
+         Just rs -> rs
+{-# INLINE forgivingAbsenceDefault #-}
+
+-- | 'forgivingAbsenceDefault' with 'mempty' as the default value
+forgivingAbsenceMonoid :: (Monoid a, MonadIO m, MonadCatch m) => m a -> m a
+forgivingAbsenceMonoid = forgivingAbsenceDefault mempty
+{-# INLINE forgivingAbsenceMonoid #-}
 
 -- | The same as 'forgivingAbsence', but ignores result.
 --

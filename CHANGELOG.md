@@ -3,6 +3,8 @@
 * Move the type functions `AbsPath` and `RelPath` to the `AnyPath` type
   class.
 
+* Improved documentation and metadata.
+
 ## Path IO 1.2.3
 
 * Allowed `time-1.7`.

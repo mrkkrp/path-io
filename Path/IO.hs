@@ -9,7 +9,8 @@
 --
 -- This module provides an interface to "System.Directory" for users of the
 -- "Path" module. It also implements commonly used primitives like recursive
--- scanning and copying of directories.
+-- scanning and copying of directories, working with temporary
+-- files\/directories, etc.
 
 {-# LANGUAGE CPP               #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -601,7 +602,7 @@ withCurrentDir dir action =
 ----------------------------------------------------------------------------
 -- Pre-defined directories
 
--- | Returns the current user's home directory.
+-- | Return the current user's home directory.
 --
 -- The directory returned is expected to be writable by the current user,
 -- but note that it isn't generally considered good practice to store
@@ -654,7 +655,7 @@ getAppUserDataDir :: (MonadIO m, MonadThrow m)
 getAppUserDataDir = (>>= parseAbsDir) . liftIO . D.getAppUserDataDirectory
 {-# INLINE getAppUserDataDir #-}
 
--- | Returns the current user's document directory.
+-- | Return the current user's document directory.
 --
 -- The directory returned is expected to be writable by the current user,
 -- but note that it isn't generally considered good practice to store
@@ -677,7 +678,7 @@ getUserDocsDir :: (MonadIO m, MonadThrow m) => m (Path Abs Dir)
 getUserDocsDir = liftIO D.getUserDocumentsDirectory >>= parseAbsDir
 {-# INLINE getUserDocsDir #-}
 
--- | Returns the current directory for temporary files.
+-- | Return the current directory for temporary files.
 --
 -- On Unix, 'getTempDir' returns the value of the @TMPDIR@ environment
 -- variable or \"\/tmp\" if the variable isn\'t defined. On Windows, the
@@ -804,7 +805,7 @@ class AnyPath path where
   makeAbsolute :: (MonadIO m, MonadThrow m)
     => path -> m (AbsPath path)
 
-  -- | Make a path relative to given directory.
+  -- | Make a path relative to a given directory.
   --
   -- @since 0.3.0
 
@@ -988,9 +989,9 @@ copyFile = liftD2 D.copyFile
 -- executable or 'Nothing' if an executable with the given name was not
 -- found. For example ('findExecutable' \"ghc\") gives you the path to GHC.
 --
--- The path returned by 'findExecutable' corresponds to the
--- program that would be executed by 'System.Process.createProcess'
--- when passed the same string (as a RawCommand, not a ShellCommand).
+-- The path returned by 'findExecutable' corresponds to the program that
+-- would be executed by 'System.Process.createProcess' when passed the same
+-- string (as a RawCommand, not a ShellCommand).
 --
 -- On Windows, 'findExecutable' calls the Win32 function 'SearchPath', which
 -- may search other places before checking the directories in @PATH@. Where

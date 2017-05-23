@@ -47,8 +47,6 @@ module Path.IO
   , getXdgDir
 #endif
     -- * Path transformation
-  , AbsPath
-  , RelPath
   , AnyPath (..)
   , resolveFile
   , resolveFile'
@@ -739,26 +737,18 @@ getXdgDir xdgDir suffix = liftIO (D.getXdgDirectory xdgDir $ maybe "" toFilePath
 ----------------------------------------------------------------------------
 -- Path transformation
 
--- | Closed type family describing how to get absolute version of given
--- 'Path'.
-
-type family AbsPath path where
-  AbsPath (Path b File) = Path Abs File
-  AbsPath (Path b Dir)  = Path Abs Dir
-
--- | Closed type family describing how to get relative version of given
--- 'Path'.
---
--- @since 0.3.0
-
-type family RelPath path where
-  RelPath (Path b File) = Path Rel File
-  RelPath (Path b Dir)  = Path Rel Dir
-
 -- | Class of things ('Path's) that can be canonicalized, made absolute, and
 -- made relative to a some base directory.
 
 class AnyPath path where
+
+  -- | Type of absolute version of the given @path@.
+
+  type AbsPath path :: *
+
+  -- | Type of relative version of the given @path@.
+
+  type RelPath path :: *
 
   -- | Make a path absolute and remove as many indirections from it as
   -- possible. Indirections include the two special directories @.@ and
@@ -822,6 +812,10 @@ class AnyPath path where
     => path -> m (RelPath path)
 
 instance AnyPath (Path b File) where
+
+  type AbsPath (Path b File) = Path Abs File
+  type RelPath (Path b File) = Path Rel File
+
   canonicalizePath = liftD D.canonicalizePath >=> parseAbsFile
   {-# INLINE canonicalizePath #-}
   makeAbsolute     = liftD D.makeAbsolute     >=> parseAbsFile
@@ -832,6 +826,10 @@ instance AnyPath (Path b File) where
   {-# INLINE makeRelativeToCurrentDir #-}
 
 instance AnyPath (Path b Dir) where
+
+  type AbsPath (Path b Dir) = Path Abs Dir
+  type RelPath (Path b Dir) = Path Rel Dir
+
   canonicalizePath = liftD D.canonicalizePath >=> parseAbsDir
   {-# INLINE canonicalizePath #-}
   makeAbsolute     = liftD D.makeAbsolute     >=> parseAbsDir

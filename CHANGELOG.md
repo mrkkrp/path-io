@@ -1,5 +1,8 @@
 ## Path IO 1.3.0
 
+* Change the default behavior of recursive traversal APIs to not follow
+  symbolic links
+
 * Move the type functions `AbsPath` and `RelPath` to the `AnyPath` type
   class.
 

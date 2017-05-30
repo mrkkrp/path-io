@@ -109,7 +109,9 @@ import Data.Time (UTCTime)
 import Path
 import System.IO (Handle)
 import System.IO.Error (isDoesNotExistError)
-import System.PosixCompat.Files (deviceID, fileID, getFileStatus)
+import System.PosixCompat.Files
+       (deviceID, fileID, getFileStatus, getSymbolicLinkStatus,
+        isSymbolicLink)
 #if MIN_VERSION_directory(1,2,3)
 import System.Directory (XdgDirectory)
 #endif
@@ -330,21 +332,46 @@ listDir path = do
       else Right `liftM` parseAbsFile ipath
   return (lefts items, rights items)
 
--- | Similar to 'listDir', but recursively traverses every sub-directory,
--- and collects all files and directories. This can fail with the same
--- exceptions as 'listDir'.
+-- XXX This can be exported as a utility function for use with walkdir for
+-- excluding symlinks during traversal.
+-- | Check if the given directory path is a symbolic link.
+
+isDirSymLink :: Path b Dir -> IO Bool
+isDirSymLink dir = do
+    -- NOTE: To be able to correctly check whether it is a symlink or not
+    -- we have to drop the trailing separator from the dir path.
+    let path = F.dropTrailingPathSeparator $ toFilePath dir
+
+#ifdef mingw32_HOST_OS
+    let fILE_ATTRIBUTE_REPARSE_POINT = 0x400
+    stat <- Win32.getFileAttributes path
+    return $ if stat .&. fILE_ATTRIBUTE_REPARSE_POINT == 0
+        then False
+        else True
+#else
+    stat <- getSymbolicLinkStatus path
+    return $ if isSymbolicLink stat
+        then True
+        else False
+#endif
+
+-- | Similar to 'listDir', but recursively traverses every sub-directory
+-- excluding symbolic links, and returns all files and directories found. This
+-- can fail with the same exceptions as 'listDir'.
 
 listDirRecur :: (MonadIO m, MonadThrow m)
-  => Path b Dir        -- ^ Directory to list
+  => Path b Dir                          -- ^ Directory to list
   -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
-listDirRecur = walkDirAccum Nothing (\_ d f -> return (d, f))
+listDirRecur = walkDirAccum (Just excludeSymLinks) (\_ d f -> return (d, f))
+    where excludeSymLinks _ subdirs _ =
+            liftIO $ fmap WalkExclude $ filterM isDirSymLink subdirs
 {-# INLINE listDirRecur #-}
 
--- | Copy directory recursively. This is not smart about symbolic links, but
--- tries to preserve permissions when possible. If destination directory
--- already exists, new files and sub-directories will complement its
--- structure, possibly overwriting old files if they happen to have the same
--- name as the new ones.
+-- | Copies a directory recursively; does not follow symbolic links, preserves
+-- permissions when it can do so without incurring an IO error. If the
+-- destination directory already exists, new files and sub-directories
+-- complement its structure, possibly overwriting old files if they happen to
+-- have the same name as the new ones.
 
 copyDirRecur :: (MonadIO m, MonadCatch m)
   => Path b0 Dir       -- ^ Source
@@ -354,7 +381,7 @@ copyDirRecur = copyDirRecurGen True
 {-# INLINE copyDirRecur #-}
 
 -- | The same as 'copyDirRecur', but it does not preserve directory
--- permissions. This may be useful, for example, if directory you want to
+-- permissions. This may be useful, for example, if the directory you want to
 -- copy is “read-only”, but you want your copy to be editable.
 --
 -- @since 1.1.0
@@ -367,7 +394,7 @@ copyDirRecur' = copyDirRecurGen False
 {-# INLINE copyDirRecur' #-}
 
 -- | Generic version of 'copyDirRecur'. The first argument controls whether
--- to preserve directory permissions or not.
+-- to preserve directory permissions or not. Does not follow symbolic links.
 
 copyDirRecurGen :: (MonadIO m, MonadCatch m)
   => Bool              -- ^ Should we preserve directory permissions?
@@ -441,7 +468,9 @@ data WalkAction
 -- paths of the parent directory, sub-directories and the files in the
 -- directory are provided as arguments to the handler.
 --
--- Detects and silently avoids any traversal loops in the directory tree.
+-- Detects and silently avoids any traversal loops in the directory tree. Note
+-- that the traversal follows symlinks by default, an appropriate traversal
+-- handler can be used to avoid that when needed.
 --
 -- @since 1.2.0
 
@@ -482,7 +511,7 @@ walkDir handler topdir =
         then Nothing
         else Just (S.insert ufid traversed)
 
--- | Similar to 'walkDir' but accepts a 'Monoid' returning, output writer as
+-- | Similar to 'walkDir' but accepts a 'Monoid'-returning output writer as
 -- well. Values returned by the output writer invocations are accumulated
 -- and returned.
 --

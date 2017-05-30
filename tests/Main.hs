@@ -5,6 +5,7 @@ module Main (main) where
 
 import Control.Monad
 import Control.Monad.Catch
+import Control.Monad.IO.Class (MonadIO (..))
 import Data.List (sort)
 import Path
 import Path.IO
@@ -21,13 +22,17 @@ main = hspec . around withSandbox $ do
   beforeWith populatedDir $ do
     describe "listDir"          listDirSpec
     describe "listDirRecur"     listDirRecurSpec
+  -- This test may fail on windows as unix-compat does not implement
+  -- createSymbolicLink for windows.
+#ifndef mingw32_HOST_OS
     describe "listDirRecurWith" listDirRecurWithSpec
+#endif
     describe "walkDir Finish"   walkDirFinishSpec
     describe "copyDirRecur"     copyDirRecurSpec
     describe "copyDirRecur'"    copyDirRecur'Spec
     describe "findFile"         findFileSpec
   -- This test may fail on windows as unix-compat does not implement
-  -- createSymbolicLink.
+  -- createSymbolicLink for windows.
 #ifndef mingw32_HOST_OS
   beforeWith populatedCyclicDir $
     describe "listDirRecur Cyclic" listDirRecurCyclicSpec
@@ -70,10 +75,17 @@ listDirRecurWith dirPred filePred =
     f' <- filterM filePred f
     return (d', f')
 
+-- Follows symbolic links
+listDirRecurCyclic :: (MonadIO m, MonadThrow m)
+  => Path b Dir                          -- ^ Directory to list
+  -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
+listDirRecurCyclic = walkDirAccum Nothing (\_ d f -> return (d, f))
+
 listDirRecurCyclicSpec :: SpecWith (Path Abs Dir)
 listDirRecurCyclicSpec =
   it "lists directory trees having traversal cycles" $ \dir ->
-    getDirStructure listDirRecur dir `shouldReturn` populatedCyclicDirStructure
+    getDirStructure listDirRecurCyclic dir
+        `shouldReturn` populatedCyclicDirStructure
 
 -- | walkDir with a Finish handler may have unpredictable output depending on
 -- the order of traversal. The only guarantee is that we will finish only after
@@ -218,11 +230,15 @@ withSandbox = withSystemTempDir "path-io-sandbox"
 
 populatedDir :: Path Abs Dir -> IO (Path Abs Dir)
 populatedDir root = do
-  let (dirs, files) = populatedDirStructure
+  let (_, files) = populatedDirStructure
       pdir          = root </> $(mkRelDir "pdir")
       withinSandbox = (pdir </>)
   ensureDir pdir
-  forM_ dirs (ensureDir . withinSandbox)
+  ensureDir $ withinSandbox $(mkRelDir "b")
+  ensureDir $ withinSandbox $(mkRelDir "b/c")
+  -- to verify that we do not follow symbolic links. We should not list b's
+  -- tree under 'a'.
+  createSymbolicLink "b" (toFilePath $ withinSandbox $(mkRelFile "a"))
   forM_ files $ (`writeFile` "") . toFilePath . withinSandbox
   return pdir
 
@@ -319,7 +335,8 @@ populatedDirRecurWith =
   ( [ $(mkRelDir "a")
     , $(mkRelDir "b")
     ]
-  , [ $(mkRelFile "b/c/three.txt")
+  , [ $(mkRelFile "a/c/three.txt") -- via symbolic link
+    , $(mkRelFile "b/c/three.txt")
     , $(mkRelFile "one.txt")
     ]
   )

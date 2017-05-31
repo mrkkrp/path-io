@@ -94,7 +94,9 @@ module Path.IO
   , setAccessTime
   , setModificationTime
 #endif
-  , getModificationTime )
+  , getModificationTime
+    -- * Other tests
+  , isSymLink)
 where
 
 import Control.Monad
@@ -332,27 +334,23 @@ listDir path = do
       else Right `liftM` parseAbsFile ipath
   return (lefts items, rights items)
 
--- XXX This can be exported as a utility function for use with walkdir for
--- excluding symlinks during traversal.
--- | Check if the given directory path is a symbolic link.
+-- | Check if the given path is a symbolic link.
+--
+-- @since 1.3.0
 
-isDirSymLink :: Path b Dir -> IO Bool
-isDirSymLink dir = do
+isSymLink :: Path b t -> IO Bool
+isSymLink p = do
     -- NOTE: To be able to correctly check whether it is a symlink or not
     -- we have to drop the trailing separator from the dir path.
-    let path = F.dropTrailingPathSeparator $ toFilePath dir
+    let path = F.dropTrailingPathSeparator $ toFilePath p
 
 #ifdef mingw32_HOST_OS
     let fILE_ATTRIBUTE_REPARSE_POINT = 0x400
     stat <- Win32.getFileAttributes path
-    return $ if stat .&. fILE_ATTRIBUTE_REPARSE_POINT == 0
-        then False
-        else True
+    return $ stat .&. fILE_ATTRIBUTE_REPARSE_POINT /= 0
 #else
     stat <- getSymbolicLinkStatus path
-    return $ if isSymbolicLink stat
-        then True
-        else False
+    return $ isSymbolicLink stat
 #endif
 
 -- | Similar to 'listDir', but recursively traverses every sub-directory
@@ -364,7 +362,7 @@ listDirRecur :: (MonadIO m, MonadThrow m)
   -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
 listDirRecur = walkDirAccum (Just excludeSymLinks) (\_ d f -> return (d, f))
     where excludeSymLinks _ subdirs _ =
-            liftIO $ fmap WalkExclude $ filterM isDirSymLink subdirs
+            liftIO $ fmap WalkExclude $ filterM isSymLink subdirs
 {-# INLINE listDirRecur #-}
 
 -- | Copies a directory recursively; does not follow symbolic links, preserves

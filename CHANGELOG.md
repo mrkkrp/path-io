@@ -1,5 +1,7 @@
 ## Path IO 1.3.0
 
+* Add `isSymLink` API to test whether a path is symbolic link
+
 * Change the default behavior of recursive traversal APIs to not follow
   symbolic links
 

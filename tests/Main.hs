@@ -19,33 +19,33 @@ import Control.Applicative ((<$>))
 
 main :: IO ()
 main = hspec . around withSandbox $ do
+#ifndef mingw32_HOST_OS
   beforeWith populatedDir $ do
+    -- NOTE These tests shall fail on Windows as unix-compat does not
+    -- implement createSymbolicLink for windows.
     describe "listDir"          listDirSpec
     describe "listDirRecur"     listDirRecurSpec
-  -- This test may fail on windows as unix-compat does not implement
-  -- createSymbolicLink for windows.
-#ifndef mingw32_HOST_OS
     describe "listDirRecurWith" listDirRecurWithSpec
-#endif
     describe "walkDir Finish"   walkDirFinishSpec
     describe "copyDirRecur"     copyDirRecurSpec
     describe "copyDirRecur'"    copyDirRecur'Spec
     describe "findFile"         findFileSpec
-  -- This test may fail on windows as unix-compat does not implement
-  -- createSymbolicLink for windows.
-#ifndef mingw32_HOST_OS
   beforeWith populatedCyclicDir $
     describe "listDirRecur Cyclic" listDirRecurCyclicSpec
 #endif
   describe "getCurrentDir"    getCurrentDirSpec
   describe "setCurrentDir"    setCurrentDirSpec
   describe "withCurrentDir"   withCurrentDirSpec
+#ifndef mingw32_HOST_OS
+  -- NOTE We can't quite test this on Windows as well, because the
+  -- environmental variables HOME and TMPDIR do not exist there.
   describe "getHomeDir"       getHomeDirSpec
   describe "getTempDir"       getTempDirSpec
 #if MIN_VERSION_directory(1,2,3)
   describe "getXdgDir Data"   getXdgDataDirSpec
   describe "getXdgDir Config" getXdgConfigDirSpec
   describe "getXdgDir Cache"  getXdgCacheDirSpec
+#endif
 #endif
 
 listDirSpec :: SpecWith (Path Abs Dir)

@@ -1,14 +1,16 @@
 ## Path IO 1.3.0
 
-* Add `isSymLink` API to test whether a path is symbolic link
-
 * Change the default behavior of recursive traversal APIs to not follow
-  symbolic links
+  symbolic links. The change affects the following functions:
+  `listDirRecur`, `copyDirRecur`, and `copyDirRecur'`.
+
+* Add `isSymlink` which allows to test whether a path is a symbolic link.
 
 * Move the type functions `AbsPath` and `RelPath` to the `AnyPath` type
-  class.
+  class (previously they were standalone closed type families, now they are
+  associated types of `AnyPath`).
 
-* Improved documentation and metadata.
+* Improved the documentation and metadata.
 
 ## Path IO 1.2.3
 

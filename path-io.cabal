@@ -21,7 +21,8 @@ flag dev
   default:            False
 
 library
-  build-depends:      base         >= 4.7     && < 5.0
+  build-depends:      Win32        >= 2.2.2   && < 2.6
+                    , base         >= 4.7     && < 5.0
                     , containers
                     , directory    >= 1.2.2   && < 1.4
                     , exceptions   >= 0.8     && < 0.9

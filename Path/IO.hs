@@ -124,6 +124,10 @@ import System.Directory (XdgDirectory)
 import Control.Applicative ((<$>))
 import Data.Monoid (Monoid)
 #endif
+#ifdef mingw32_HOST_OS
+import Data.Bits ((.&.))
+import qualified System.Win32 as Win32
+#endif
 
 ----------------------------------------------------------------------------
 -- Actions on directories
@@ -338,7 +342,7 @@ listDirRecur :: (MonadIO m, MonadThrow m)
   -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
 listDirRecur = walkDirAccum (Just excludeSymlinks) (\_ d f -> return (d, f))
     where excludeSymlinks _ subdirs _ =
-            liftIO (WalkExclude <$> filterM isSymlink subdirs)
+            WalkExclude <$> filterM isSymlink subdirs
 
 -- | Copies a directory recursively. It /does not/ follow symbolic links and
 -- preserves permissions when possible. If the destination directory already
@@ -1207,18 +1211,17 @@ ignoringAbsence = liftM (const ()) . forgivingAbsence
 --
 -- @since 1.3.0
 
-isSymlink :: Path b t -> IO Bool
+isSymlink :: MonadIO m => Path b t -> m Bool
 isSymlink p = do
     -- NOTE: To be able to correctly check whether it is a symlink or not we
     -- have to drop the trailing separator from the dir path.
     let path = F.dropTrailingPathSeparator (toFilePath p)
 #ifdef mingw32_HOST_OS
     let fILE_ATTRIBUTE_REPARSE_POINT = 0x400
-    stat <- Win32.getFileAttributes path
+    stat <- liftIO (Win32.getFileAttributes path)
     return $ stat .&. fILE_ATTRIBUTE_REPARSE_POINT /= 0
 #else
-    stat <- P.getSymbolicLinkStatus path
-    return $ P.isSymbolicLink stat
+    liftIO $ liftM P.isSymbolicLink (P.getSymbolicLinkStatus path)
 #endif
 
 ----------------------------------------------------------------------------

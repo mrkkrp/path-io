@@ -19,10 +19,6 @@ import Control.Applicative ((<$>))
 
 main :: IO ()
 main = hspec . around withSandbox $ do
-  describe "test isSymlink" $
-    it "works" $ \dir -> do
-      writeFile (toFilePath $ dir </> $(mkRelFile "foo.txt")) ""
-      isSymlink (dir </> $(mkRelFile "foo.txt")) `shouldReturn` False
 #ifndef mingw32_HOST_OS
   beforeWith populatedDir $ do
     -- NOTE These tests shall fail on Windows as unix-compat does not

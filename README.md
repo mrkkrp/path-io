@@ -5,6 +5,7 @@
 [![Stackage Nightly](http://stackage.org/package/path-io/badge/nightly)](http://stackage.org/nightly/package/path-io)
 [![Stackage LTS](http://stackage.org/package/path-io/badge/lts)](http://stackage.org/lts/package/path-io)
 [![Build Status](https://travis-ci.org/mrkkrp/path-io.svg?branch=master)](https://travis-ci.org/mrkkrp/path-io)
+[![Build status](https://ci.appveyor.com/api/projects/status/q0orxo6856n18jvg/branch/master?svg=true)](https://ci.appveyor.com/project/mrkkrp/path-io/branch/master)
 [![Coverage Status](https://coveralls.io/repos/mrkkrp/path-io/badge.svg?branch=master&service=github)](https://coveralls.io/github/mrkkrp/path-io?branch=master)
 
 This package provides an interface to

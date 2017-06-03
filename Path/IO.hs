@@ -60,6 +60,8 @@ module Path.IO
   , findFile
   , findFiles
   , findFilesWith
+    -- * Symbolic links
+  , isSymlink
     -- * Temporary files and directories
   , withTempFile
   , withTempDir
@@ -74,8 +76,6 @@ module Path.IO
   , isLocationOccupied
   , forgivingAbsence
   , ignoringAbsence
-    -- * Other tests
-  , isSymlink
     -- * Permissions
   , D.Permissions
   , D.emptyPermissions
@@ -337,7 +337,7 @@ listDirRecur :: (MonadIO m, MonadThrow m)
   -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
 listDirRecur = walkDirAccum (Just excludeSymlinks) (\_ d f -> return (d, f))
     where excludeSymlinks _ subdirs _ =
-            liftIO (WalkExclude <$> filterM isSymlink subdirs)
+            liftM WalkExclude (filterM isSymlink subdirs)
 
 -- | Copies a directory recursively. It /does not/ follow symbolic links and
 -- preserves permissions when possible. If the destination directory already
@@ -1029,6 +1029,20 @@ findFilesWith f (d:ds) file = do
     else findFilesWith f ds file
 
 ----------------------------------------------------------------------------
+-- Symbolic links
+
+-- | Check if the given path is a symbolic link.
+--
+-- @since 1.3.0
+
+isSymlink :: MonadIO m => Path b t -> m Bool
+isSymlink p = liftIO $ liftM P.isSymbolicLink (P.getSymbolicLinkStatus path)
+  where
+    -- NOTE: To be able to correctly check whether it is a symlink or not we
+    -- have to drop the trailing separator from the dir path.
+    path = F.dropTrailingPathSeparator (toFilePath p)
+
+----------------------------------------------------------------------------
 -- Temporary files and directories
 
 -- | Use a temporary file that doesn't already exist.
@@ -1198,27 +1212,6 @@ forgivingAbsence f = catchIf isDoesNotExistError
 
 ignoringAbsence :: (MonadIO m, MonadCatch m) => m a -> m ()
 ignoringAbsence = liftM (const ()) . forgivingAbsence
-
-----------------------------------------------------------------------------
--- Other tests
-
--- | Check if the given path is a symbolic link.
---
--- @since 1.3.0
-
-isSymlink :: Path b t -> IO Bool
-isSymlink p = do
-    -- NOTE: To be able to correctly check whether it is a symlink or not we
-    -- have to drop the trailing separator from the dir path.
-    let path = F.dropTrailingPathSeparator (toFilePath p)
-#ifdef mingw32_HOST_OS
-    let fILE_ATTRIBUTE_REPARSE_POINT = 0x400
-    stat <- Win32.getFileAttributes path
-    return $ stat .&. fILE_ATTRIBUTE_REPARSE_POINT /= 0
-#else
-    stat <- P.getSymbolicLinkStatus path
-    return $ P.isSymbolicLink stat
-#endif
 
 ----------------------------------------------------------------------------
 -- Permissions

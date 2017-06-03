@@ -65,9 +65,9 @@ listDirRecurWithSpec =
         `shouldReturn` populatedDirRecurWith
 
 listDirRecurWith
-  :: (Path Abs Dir ->  IO Bool)            -- ^ Dir match predicate
+  :: (Path Abs Dir ->  IO Bool)           -- ^ Dir match predicate
   -> (Path Abs File -> IO Bool)           -- ^ File match predicate
-  -> Path Abs Dir                        -- ^ Top dir to traverse
+  -> Path Abs Dir                         -- ^ Top dir to traverse
   -> IO ([Path Abs Dir], [Path Abs File]) -- ^ Matched subdirs and files
 listDirRecurWith dirPred filePred =
   walkDirAccum Nothing $ \_ d f -> do
@@ -215,7 +215,7 @@ getXdgCacheDirSpec =
 ----------------------------------------------------------------------------
 -- Helpers
 
--- | Create sandbox directory to model some situation in it and run some
+-- | Create a sandbox directory to model some situation in it and run some
 -- tests. Note that we're using new unique sandbox directory for each test
 -- case to avoid contamination and it's unconditionally deleted after test
 -- case finishes.
@@ -275,12 +275,12 @@ populatedDirStructure =
 -- | Create a directory structure which has cycles in it due to directory
 -- symbolic links.
 --
--- 1) Mutual cycles between two directory trees. If we traverse a or c we
+-- 1) Mutual cycles between two directory trees. If we traverse @a@ or @c@ we
 -- will get into the same cycle:
-    -- a/(b -> c), c/(d -> a)
-    -- c/(d -> a), a/(b -> c)
+--     a\/(b -> c), c\/(d -> a)
+--     c\/(d -> a), a\/(b -> c)
 -- 2) Cycle with own ancestor
-    -- e/f/(g -> e)
+--     e\/f\/(g -> e)
 
 populatedCyclicDirStructure :: ([Path Rel Dir], [Path Rel File])
 populatedCyclicDirStructure =

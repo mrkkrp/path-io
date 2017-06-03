@@ -121,7 +121,6 @@ import qualified System.PosixCompat.Files as P
 import System.Directory (XdgDirectory)
 #endif
 #if !MIN_VERSION_base(4,8,0)
-import Control.Applicative ((<$>))
 import Data.Monoid (Monoid)
 #endif
 #ifdef mingw32_HOST_OS
@@ -342,7 +341,7 @@ listDirRecur :: (MonadIO m, MonadThrow m)
   -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
 listDirRecur = walkDirAccum (Just excludeSymlinks) (\_ d f -> return (d, f))
     where excludeSymlinks _ subdirs _ =
-            WalkExclude <$> filterM isSymlink subdirs
+            liftM WalkExclude (filterM isSymlink subdirs)
 
 -- | Copies a directory recursively. It /does not/ follow symbolic links and
 -- preserves permissions when possible. If the destination directory already

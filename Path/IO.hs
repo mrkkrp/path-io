@@ -123,10 +123,6 @@ import System.Directory (XdgDirectory)
 #if !MIN_VERSION_base(4,8,0)
 import Data.Monoid (Monoid)
 #endif
-#ifdef mingw32_HOST_OS
-import Data.Bits ((.&.))
-import qualified System.Win32 as Win32
-#endif
 
 ----------------------------------------------------------------------------
 -- Actions on directories
@@ -1211,17 +1207,11 @@ ignoringAbsence = liftM (const ()) . forgivingAbsence
 -- @since 1.3.0
 
 isSymlink :: MonadIO m => Path b t -> m Bool
-isSymlink p = do
+isSymlink p = liftIO $ liftM P.isSymbolicLink (P.getSymbolicLinkStatus path)
+  where
     -- NOTE: To be able to correctly check whether it is a symlink or not we
     -- have to drop the trailing separator from the dir path.
-    let path = F.dropTrailingPathSeparator (toFilePath p)
-#ifdef mingw32_HOST_OS
-    let fILE_ATTRIBUTE_REPARSE_POINT = 0x400
-    stat <- liftIO (Win32.getFileAttributes path)
-    return $ stat .&. fILE_ATTRIBUTE_REPARSE_POINT /= 0
-#else
-    liftIO $ liftM P.isSymbolicLink (P.getSymbolicLinkStatus path)
-#endif
+    path = F.dropTrailingPathSeparator (toFilePath p)
 
 ----------------------------------------------------------------------------
 -- Permissions

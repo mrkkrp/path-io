@@ -31,8 +31,6 @@ library
                     , time         >= 1.4     && < 1.9
                     , transformers >= 0.3     && < 0.6
                     , unix-compat
-  if os(windows)
-    build-depends:    Win32        >= 2.2.2   && < 2.6
   exposed-modules:    Path.IO
   if flag(dev)
     ghc-options:      -Wall -Werror

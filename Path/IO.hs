@@ -387,7 +387,12 @@ copyDirRecurGen p src dest = do
         -> Path Abs Dir
         -> Path Abs t
         -> m (Path Abs t)
-      swapParent old new path = (new </>) `liftM` stripDir old path
+      swapParent old new path = (new </>) `liftM`
+#if MIN_VERSION_path(0,6,0)
+        stripProperPrefix old path
+#else
+        stripDir old path
+#endif
   tdirs  <- mapM (swapParent bsrc bdest) dirs
   tfiles <- mapM (swapParent bsrc bdest) files
   ensureDir bdest

@@ -1,3 +1,7 @@
+## Path IO 1.3.1
+
+* Made `listDirRecur` faster for deep directory trees.
+
 ## Path IO 1.3.0
 
 * Change the default behavior of recursive traversal APIs to not follow

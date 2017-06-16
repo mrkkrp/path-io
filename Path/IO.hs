@@ -99,6 +99,7 @@ module Path.IO
   , getModificationTime )
 where
 
+import Control.Arrow ((***))
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class (MonadIO (..))
@@ -111,6 +112,7 @@ import Data.Time (UTCTime)
 import Path
 import System.IO (Handle)
 import System.IO.Error (isDoesNotExistError)
+import qualified Data.DList               as DList
 import qualified Data.Set                 as S
 import qualified System.Directory         as D
 import qualified System.FilePath          as F
@@ -335,9 +337,12 @@ listDir path = do
 listDirRecur :: (MonadIO m, MonadThrow m)
   => Path b Dir                          -- ^ Directory to list
   -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
-listDirRecur = walkDirAccum (Just excludeSymlinks) (\_ d f -> return (d, f))
-    where excludeSymlinks _ subdirs _ =
-            liftM WalkExclude (filterM isSymlink subdirs)
+listDirRecur dir = (DList.toList *** DList.toList)
+  `liftM` walkDirAccum (Just excludeSymlinks) writer dir
+  where
+    excludeSymlinks _ subdirs _ =
+      WalkExclude `liftM` filterM isSymlink subdirs
+    writer _ ds fs = return (DList.fromList ds, DList.fromList fs)
 
 -- | Copies a directory recursively. It /does not/ follow symbolic links and
 -- preserves permissions when possible. If the destination directory already

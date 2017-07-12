@@ -1,3 +1,8 @@
+## Path IO 1.3.2
+
+* Reduce a number of `(MonadIO m, MonadThrow m)` constraints to just
+  `MonadIO m` [#27](https://github.com/mrkkrp/path-io/issues/27)
+
 ## Path IO 1.3.1
 
 * Made `listDirRecur` faster for deep directory trees.

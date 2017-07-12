@@ -314,10 +314,10 @@ renameDir = liftD2 D.renameDirectory
 --   The path refers to an existing non-directory object.
 --   @[ENOTDIR]@
 
-listDir :: (MonadIO m, MonadThrow m)
+listDir :: MonadIO m
   => Path b Dir        -- ^ Directory to list
   -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
-listDir path = do
+listDir path = liftIO $ do
   bpath <- makeAbsolute path
   raw   <- liftD D.getDirectoryContents bpath
   items <- forM (raw \\ [".", ".."]) $ \item -> do
@@ -334,7 +334,7 @@ listDir path = do
 --
 -- __Note__: before version /1.3.0/, this function followed symlinks.
 
-listDirRecur :: (MonadIO m, MonadThrow m)
+listDirRecur :: MonadIO m
   => Path b Dir                          -- ^ Directory to list
   -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
 listDirRecur dir = (DList.toList *** DList.toList)
@@ -378,20 +378,20 @@ copyDirRecur' = copyDirRecurGen False
 --
 -- __Note__: before version /1.3.0/, this function followed symlinks.
 
-copyDirRecurGen :: (MonadIO m, MonadCatch m)
+copyDirRecurGen :: MonadIO m
   => Bool              -- ^ Should we preserve directory permissions?
   -> Path b0 Dir       -- ^ Source
   -> Path b1 Dir       -- ^ Destination
   -> m ()
-copyDirRecurGen p src dest = do
+copyDirRecurGen p src dest = liftIO $ do
   bsrc  <- makeAbsolute src
   bdest <- makeAbsolute dest
   (dirs, files) <- listDirRecur bsrc
-  let swapParent :: MonadThrow m
-        => Path Abs Dir
+  let swapParent
+        :: Path Abs Dir
         -> Path Abs Dir
         -> Path Abs t
-        -> m (Path Abs t)
+        -> IO (Path Abs t)
       swapParent old new path = (new </>) `liftM`
 #if MIN_VERSION_path(0,6,0)
         stripProperPrefix old path
@@ -463,7 +463,7 @@ data WalkAction
 -- @since 1.2.0
 
 walkDir
-  :: (MonadIO m, MonadThrow m)
+  :: MonadIO m
   => (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m WalkAction)
      -- ^ Handler (@dir -> subdirs -> files -> 'WalkAction'@)
   -> Path b Dir
@@ -510,7 +510,7 @@ walkDir handler topdir =
 -- @since 1.2.0
 
 walkDirAccum
-  :: (MonadIO m, MonadThrow m, Monoid o)
+  :: (MonadIO m, Monoid o)
   => Maybe (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m WalkAction)
     -- ^ Descend handler (@dir -> subdirs -> files -> 'WalkAction'@),
     -- descend the whole tree if omitted
@@ -559,8 +559,8 @@ walkDirAccum dHandler writer topdir = execWriterT (walkDir handler topdir)
 -- * 'UnsupportedOperation'
 -- The operating system has no notion of current working directory.
 
-getCurrentDir :: (MonadIO m, MonadThrow m) => m (Path Abs Dir)
-getCurrentDir = liftIO D.getCurrentDirectory >>= parseAbsDir
+getCurrentDir :: MonadIO m => m (Path Abs Dir)
+getCurrentDir = liftIO $ D.getCurrentDirectory >>= parseAbsDir
 
 -- | Change the working directory to the given path.
 --
@@ -634,7 +634,7 @@ withCurrentDir dir action =
 -- The home directory for the current user does not exist, or
 -- cannot be found.
 
-getHomeDir :: (MonadIO m, MonadThrow m) => m (Path Abs Dir)
+getHomeDir :: MonadIO m => m (Path Abs Dir)
 getHomeDir = liftIO D.getHomeDirectory >>= resolveDir'
 
 -- | Obtain the path to a special directory for storing user-specific
@@ -661,10 +661,10 @@ getHomeDir = liftIO D.getHomeDirectory >>= resolveDir'
 --   The home directory for the current user does not exist, or cannot be
 --   found.
 
-getAppUserDataDir :: (MonadIO m, MonadThrow m)
+getAppUserDataDir :: MonadIO m
   => String            -- ^ Name of application (used in path construction)
   -> m (Path Abs Dir)
-getAppUserDataDir = (>>= parseAbsDir) . liftIO . D.getAppUserDataDirectory
+getAppUserDataDir = liftIO . (>>= parseAbsDir) . D.getAppUserDataDirectory
 
 -- | Return the current user's document directory.
 --
@@ -685,8 +685,8 @@ getAppUserDataDir = (>>= parseAbsDir) . liftIO . D.getAppUserDataDirectory
 -- The document directory for the current user does not exist, or
 -- cannot be found.
 
-getUserDocsDir :: (MonadIO m, MonadThrow m) => m (Path Abs Dir)
-getUserDocsDir = liftIO D.getUserDocumentsDirectory >>= parseAbsDir
+getUserDocsDir :: MonadIO m => m (Path Abs Dir)
+getUserDocsDir = liftIO $ D.getUserDocumentsDirectory >>= parseAbsDir
 
 -- | Return the current directory for temporary files.
 --
@@ -714,7 +714,7 @@ getUserDocsDir = liftIO D.getUserDocumentsDirectory >>= parseAbsDir
 --
 -- The function doesn't verify whether the path exists.
 
-getTempDir :: (MonadIO m, MonadThrow m) => m (Path Abs Dir)
+getTempDir :: MonadIO m => m (Path Abs Dir)
 getTempDir = liftIO D.getTemporaryDirectory >>= resolveDir'
 
 #if MIN_VERSION_directory(1,2,3)
@@ -735,14 +735,14 @@ getTempDir = liftIO D.getTemporaryDirectory >>= resolveDir'
 --
 -- @since 1.2.1
 
-getXdgDir :: (MonadIO m, MonadThrow m)
+getXdgDir :: MonadIO m
   => XdgDirectory      -- ^ Which special directory
   -> Maybe (Path Rel Dir)
      -- ^ A relative path that is appended to the path; if 'Nothing', the
      -- base path is returned
   -> m (Path Abs Dir)
 getXdgDir xdgDir suffix =
-  liftIO (D.getXdgDirectory xdgDir $ maybe "" toFilePath suffix) >>= parseAbsDir
+  liftIO $ (D.getXdgDirectory xdgDir $ maybe "" toFilePath suffix) >>= parseAbsDir
 #endif
 
 ----------------------------------------------------------------------------
@@ -790,7 +790,7 @@ class AnyPath path where
   -- Please note that before version 1.2.3.0 of the @directory@ package,
   -- this function had unpredictable behavior on non-existent paths.
 
-  canonicalizePath :: (MonadIO m, MonadThrow m)
+  canonicalizePath :: MonadIO m
     => path
     -> m (AbsPath path)
 
@@ -800,7 +800,7 @@ class AnyPath path where
   -- If the path is already absolute, the operation never fails. Otherwise,
   -- the operation may fail with the same exceptions as 'getCurrentDir'.
 
-  makeAbsolute :: (MonadIO m, MonadThrow m)
+  makeAbsolute :: MonadIO m
     => path
     -> m (AbsPath path)
 
@@ -817,7 +817,7 @@ class AnyPath path where
   --
   -- @since 0.3.0
 
-  makeRelativeToCurrentDir :: (MonadIO m, MonadThrow m)
+  makeRelativeToCurrentDir :: MonadIO m
     => path
     -> m (RelPath path)
 
@@ -826,38 +826,37 @@ instance AnyPath (Path b File) where
   type AbsPath (Path b File) = Path Abs File
   type RelPath (Path b File) = Path Rel File
 
-  canonicalizePath = liftD D.canonicalizePath >=> parseAbsFile
-  makeAbsolute     = liftD D.makeAbsolute     >=> parseAbsFile
+  canonicalizePath = liftD $ D.canonicalizePath >=> parseAbsFile
+  makeAbsolute     = liftD $ D.makeAbsolute     >=> parseAbsFile
   makeRelative b p = parseRelFile (F.makeRelative (toFilePath b) (toFilePath p))
-  makeRelativeToCurrentDir p = getCurrentDir >>= flip makeRelative p
+  makeRelativeToCurrentDir p = liftIO $ getCurrentDir >>= flip makeRelative p
 
 instance AnyPath (Path b Dir) where
 
   type AbsPath (Path b Dir) = Path Abs Dir
   type RelPath (Path b Dir) = Path Rel Dir
 
-  canonicalizePath = liftD D.canonicalizePath >=> parseAbsDir
-  makeAbsolute     = liftD D.makeAbsolute     >=> parseAbsDir
+  canonicalizePath = liftD D.canonicalizePath >=> liftIO . parseAbsDir
+  makeAbsolute     = liftD D.makeAbsolute     >=> liftIO . parseAbsDir
   makeRelative b p = parseRelDir (F.makeRelative (toFilePath b) (toFilePath p))
-  makeRelativeToCurrentDir p = getCurrentDir >>= flip makeRelative p
+  makeRelativeToCurrentDir p = liftIO $ getCurrentDir >>= flip makeRelative p
 
 -- | Append stringly-typed path to an absolute path and then canonicalize
 -- it.
 --
 -- @since 0.3.0
 
-resolveFile :: (MonadIO m, MonadThrow m)
+resolveFile :: MonadIO m
   => Path Abs Dir      -- ^ Base directory
   -> FilePath          -- ^ Path to resolve
   -> m (Path Abs File)
-resolveFile b p = f (toFilePath b F.</> p) >>= parseAbsFile
-  where f = liftIO . D.canonicalizePath
+resolveFile b p = liftIO $ D.canonicalizePath (toFilePath b F.</> p) >>= parseAbsFile
 
 -- | The same as 'resolveFile', but uses current working directory.
 --
 -- @since 0.3.0
 
-resolveFile' :: (MonadIO m, MonadThrow m)
+resolveFile' :: MonadIO m
   => FilePath          -- ^ Path to resolve
   -> m (Path Abs File)
 resolveFile' p = getCurrentDir >>= flip resolveFile p
@@ -866,18 +865,17 @@ resolveFile' p = getCurrentDir >>= flip resolveFile p
 --
 -- @since 0.3.0
 
-resolveDir :: (MonadIO m, MonadThrow m)
+resolveDir :: MonadIO m
   => Path Abs Dir      -- ^ Base directory
   -> FilePath          -- ^ Path to resolve
   -> m (Path Abs Dir)
-resolveDir b p = f (toFilePath b F.</> p) >>= parseAbsDir
-  where f = liftIO . D.canonicalizePath
+resolveDir b p = liftIO $ D.canonicalizePath (toFilePath b F.</> p) >>= parseAbsDir
 
 -- | The same as 'resolveDir', but uses current working directory.
 --
 -- @since 0.3.0
 
-resolveDir' :: (MonadIO m, MonadThrow m)
+resolveDir' :: MonadIO m
   => FilePath          -- ^ Path to resolve
   -> m (Path Abs Dir)
 resolveDir' p = getCurrentDir >>= flip resolveDir p
@@ -999,7 +997,7 @@ findExecutable = liftM (>>= parseAbsFile) . liftD D.findExecutable
 
 -- | Search through the given set of directories for the given file.
 
-findFile :: (MonadIO m, MonadThrow m)
+findFile :: MonadIO m
   => [Path b Dir]      -- ^ Set of directories to search in
   -> Path Rel File     -- ^ Filename of interest
   -> m (Maybe (Path Abs File)) -- ^ Absolute path to file (if found)
@@ -1014,7 +1012,7 @@ findFile (d:ds) file = do
 -- | Search through the given set of directories for the given file and
 -- return a list of paths where the given file exists.
 
-findFiles :: (MonadIO m, MonadThrow m)
+findFiles :: MonadIO m
   => [Path b Dir]      -- ^ Set of directories to search in
   -> Path Rel File     -- ^ Filename of interest
   -> m [Path Abs File] -- ^ Absolute paths to all found files
@@ -1024,7 +1022,7 @@ findFiles = findFilesWith (const (return True))
 -- the given property (usually permissions) and return a list of paths where
 -- the given file exists and has the property.
 
-findFilesWith :: (MonadIO m, MonadThrow m)
+findFilesWith :: MonadIO m
   => (Path Abs File -> m Bool) -- ^ How to test the files
   -> [Path b Dir]      -- ^ Set of directories to search in
   -> Path Rel File     -- ^ Filename of interest
@@ -1135,13 +1133,13 @@ withSystemTempDir t action = getTempDir >>= \path ->
 --
 -- @since 0.2.0
 
-openTempFile :: (MonadIO m, MonadThrow m)
+openTempFile :: MonadIO m
   => Path b Dir        -- ^ Directory to create file in
   -> String
      -- ^ File name template; if the template is "foo.ext" then the created
      -- file will be @\"fooXXX.ext\"@ where @XXX@ is some random number
   -> m (Path Abs File, Handle) -- ^ Name of created file and its 'Handle'
-openTempFile path t = do
+openTempFile path t = liftIO $ do
   apath <- makeAbsolute path
   (tfile, h) <- liftD2' T.openTempFile apath t
   (,h) `liftM` parseAbsFile tfile
@@ -1156,11 +1154,11 @@ openTempFile path t = do
 --
 -- @since 0.2.0
 
-openBinaryTempFile :: (MonadIO m, MonadThrow m)
+openBinaryTempFile :: MonadIO m
   => Path b Dir        -- ^ Directory to create file in
   -> String            -- ^ File name template, see 'openTempFile'
   -> m (Path Abs File, Handle) -- ^ Name of created file and its 'Handle'
-openBinaryTempFile path t = do
+openBinaryTempFile path t = liftIO $ do
   apath <- makeAbsolute path
   (tfile, h) <- liftD2' T.openBinaryTempFile apath t
   (,h) `liftM` parseAbsFile tfile
@@ -1173,11 +1171,11 @@ openBinaryTempFile path t = do
 --
 -- @since 0.2.0
 
-createTempDir :: (MonadIO m, MonadThrow m)
+createTempDir :: MonadIO m
   => Path b Dir        -- ^ Directory to create file in
   -> String            -- ^ Directory name template, see 'openTempFile'
   -> m (Path Abs Dir)  -- ^ Name of created temporary directory
-createTempDir path t = makeAbsolute path >>= \apath ->
+createTempDir path t = liftIO $ makeAbsolute path >>= \apath ->
   liftD2' T.createTempDirectory apath t >>= parseAbsDir
 
 ----------------------------------------------------------------------------
@@ -1394,8 +1392,8 @@ liftD2' m a v = liftIO $ m (toFilePath a) v
 
 -- | Perform an action ignoring IO exceptions it may throw.
 
-ignoringIOErrors :: MonadCatch m => m () -> m ()
+ignoringIOErrors :: IO () -> IO ()
 ignoringIOErrors ioe = ioe `catch` handler
   where
-    handler :: MonadThrow m => IOError -> m ()
+    handler :: Monad m => IOError -> m ()
     handler = const (return ())

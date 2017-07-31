@@ -1,3 +1,7 @@
+## Path IO 1.3.3
+
+* (Hopefully) fixed test suite failure with Cabal 2.0 and GHC 8.2.1.
+
 ## Path IO 1.3.2
 
 * Reduce a number of `(MonadIO m, MonadThrow m)` constraints to just

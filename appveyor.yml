@@ -1,21 +1,33 @@
+version: "{build}"
+clone_folder: "C:\\WORK"
+
+environment:
+  global:
+    CABOPTS: "--store-dir=C:\\"
+  matrix:
+    - GHCVER: "7.8.4.1"
+    - GHCVER: "7.10.3.2"
+    - GHCVER: "8.0.2"
+    - GHCVER: "8.2.2"
+    - GHCVER: "8.4.1"
+
+cache:
+  - "C:\\SR"
+
 # Disable standard build process with MSBuild
 build: off
 
-# In case of unreliable builds try disabling caching.
-cache:
-- "c:\\sr"
-
-before_test:
-- curl -sS -ostack.zip -L --insecure http://www.stackage.org/stack/windows-i386
-- 7z x stack.zip stack.exe
-
-clone_folder: "c:\\stack"
-environment:
-  global:
-    STACK_ROOT: "c:\\sr"
+install:
+  - choco install -y cabal
+  - choco install -y ghc --version %GHCVER%
+  - refreshenv
+  - set PATH=C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\bin;%PATH%
+  - cabal --version
+  - ghc --version
+  - cabal %CABOPTS% update
 
 test_script:
-- stack setup > nul
-# The ugly echo "" hack is to avoid complaints about 0 being an invalid file
-# descriptor
-- echo "" | stack --no-terminal build --haddock --no-haddock-deps --bench --test :tests
+  - cabal %CABOPTS% new-build --enable-tests --enable-benchmarks
+  - cabal %CABOPTS% new-test
+  - cabal %CABOPTS% new-haddock
+  - cabal %CABOPTS% sdist

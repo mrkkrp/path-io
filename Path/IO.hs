@@ -12,10 +12,12 @@
 -- scanning and copying of directories, working with temporary
 -- files\/directories, etc.
 
-{-# LANGUAGE CPP               #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TupleSections     #-}
-{-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE CPP                       #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE FlexibleContexts          #-}
+{-# LANGUAGE FlexibleInstances         #-}
+{-# LANGUAGE TupleSections             #-}
+{-# LANGUAGE TypeFamilies              #-}
 
 module Path.IO
   ( -- * Actions on directories
@@ -52,6 +54,11 @@ module Path.IO
   , resolveFile'
   , resolveDir
   , resolveDir'
+  , SomePath(..)
+  , SomePathException(..)
+  , parseSomeDir
+  , parseSomeFile
+  , someFilePath
     -- * Actions on files
   , removeFile
   , renameFile
@@ -99,6 +106,7 @@ module Path.IO
   , getModificationTime )
 where
 
+import Control.Applicative
 import Control.Arrow ((***))
 import Control.Monad
 import Control.Monad.Catch
@@ -114,6 +122,7 @@ import System.IO (Handle)
 import System.IO.Error (isDoesNotExistError)
 import qualified Data.DList               as DList
 import qualified Data.Set                 as S
+import qualified Data.Aeson               as A
 import qualified System.Directory         as D
 import qualified System.FilePath          as F
 import qualified System.IO.Temp           as T
@@ -840,6 +849,74 @@ instance AnyPath (Path b Dir) where
   makeAbsolute     = liftD D.makeAbsolute     >=> liftIO . parseAbsDir
   makeRelative b p = parseRelDir (F.makeRelative (toFilePath b) (toFilePath p))
   makeRelativeToCurrentDir p = liftIO $ getCurrentDir >>= flip makeRelative p
+
+-- | A path with an arbitrary base.
+--
+-- @
+-- someFilepath <- getFilepathFromUser
+-- absFilepath  <- makeAbsolute someFilepath
+-- @
+--
+-- @since X.X.X
+
+data SomePath t = forall b.
+  ( AnyPath (Path b t)
+  , AbsPath (Path b t) ~ Path Abs t
+  , RelPath (Path b t) ~ Path Rel t
+  ) => SomePath (Path b t)
+
+instance AnyPath (SomePath t) where
+
+  type AbsPath (SomePath t) = Path Abs t
+  type RelPath (SomePath t) = Path Rel t
+
+  canonicalizePath         (SomePath x) = canonicalizePath x
+  makeAbsolute             (SomePath x) = makeAbsolute x
+  makeRelative baseDir     (SomePath x) = makeRelative baseDir x
+  makeRelativeToCurrentDir (SomePath x) = makeRelativeToCurrentDir x
+
+instance A.FromJSON (SomePath Dir) where
+  parseJSON = A.parseJSON >=> f
+    where
+      f fp = case parseSomeDir fp of
+        Nothing -> fail "Failed to parse some directory!"
+        Just sp -> return sp
+      {-# INLINE f#-}
+
+instance A.FromJSON (SomePath File) where
+  parseJSON = A.parseJSON >=> f
+    where
+      f fp = case parseSomeFile fp of
+        Nothing -> fail "Failed to parse some file!"
+        Just sp -> return sp
+      {-# INLINE f#-}
+
+instance A.ToJSON (SomePath t) where
+    toJSON = A.toJSON . someFilePath
+
+parseSomeDir :: (Alternative m, MonadThrow m) => FilePath -> m (SomePath Dir)
+parseSomeDir fp
+  =   liftM SomePath (parseAbsDir fp)
+  <|> liftM SomePath (parseRelDir fp)
+  <|> throwM (InvalidSomeDir fp)
+
+parseSomeFile :: (Alternative m, MonadThrow m) => FilePath -> m (SomePath File)
+parseSomeFile fp
+  =   liftM SomePath (parseAbsFile fp)
+  <|> liftM SomePath (parseRelFile fp)
+  <|> throwM (InvalidSomeFile fp)
+
+someFilePath :: SomePath t -> FilePath
+someFilePath (SomePath x) = toFilePath x
+
+data SomePathException
+  = InvalidSomeDir FilePath
+  | InvalidSomeFile FilePath
+  deriving (Eq, Show)
+
+instance Exception SomePathException
+
+
 
 -- | Append stringly-typed path to an absolute path and then canonicalize
 -- it.

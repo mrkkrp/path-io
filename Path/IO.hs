@@ -117,6 +117,7 @@ import Control.Monad.Trans.Writer.Lazy (execWriterT, tell)
 import Data.Either (lefts, rights)
 import Data.List ((\\))
 import Data.Time (UTCTime)
+import Data.Typeable (Typeable)
 import Path
 import System.IO (Handle)
 import System.IO.Error (isDoesNotExistError)
@@ -912,7 +913,7 @@ someFilePath (SomePath x) = toFilePath x
 data SomePathException
   = InvalidSomeDir FilePath
   | InvalidSomeFile FilePath
-  deriving (Eq, Show)
+  deriving (Eq, Show, Typeable)
 
 instance Exception SomePathException
 

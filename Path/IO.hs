@@ -33,6 +33,8 @@ module Path.IO
   , WalkAction (..)
   , walkDir
   , walkDirAccum
+  , walkDirRel
+  , walkDirAccumRel
     -- ** Current working directory
   , getCurrentDir
   , setCurrentDir
@@ -445,9 +447,9 @@ copyDirRecurGen p src dest = liftIO $ do
 --
 -- @since 1.2.0
 
-data WalkAction
+data WalkAction b
   = WalkFinish                  -- ^ Finish the entire walk altogether
-  | WalkExclude [Path Abs Dir]  -- ^ List of sub-directories to exclude from
+  | WalkExclude [Path b Dir]    -- ^ List of sub-directories to exclude from
                                 -- descending
   deriving (Eq, Show)
 
@@ -464,7 +466,7 @@ data WalkAction
 
 walkDir
   :: MonadIO m
-  => (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m WalkAction)
+  => (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m (WalkAction Abs))
      -- ^ Handler (@dir -> subdirs -> files -> 'WalkAction'@)
   -> Path b Dir
      -- ^ Directory where traversal begins
@@ -511,7 +513,7 @@ walkDir handler topdir =
 
 walkDirAccum
   :: (MonadIO m, Monoid o)
-  => Maybe (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m WalkAction)
+  => Maybe (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m (WalkAction Abs))
     -- ^ Descend handler (@dir -> subdirs -> files -> 'WalkAction'@),
     -- descend the whole tree if omitted
   -> (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m o)
@@ -528,6 +530,57 @@ walkDirAccum dHandler writer topdir = execWriterT (walkDir handler topdir)
       case dHandler of
         Just h -> lift $ h dir subdirs files
         Nothing -> return (WalkExclude [])
+
+-- | A version of 'walkDir' with the base directory (the directory where the 
+-- traversal begins) stripped.
+--
+-- @since X.X.X
+
+walkDirRel
+  :: (MonadIO m, MonadThrow m)
+  => (Path Rel Dir -> [Path Rel Dir] -> [Path Rel File] -> m (WalkAction Rel))
+  -> Path b Dir
+  -> m ()
+walkDirRel f = makeAbsolute >=> \baseDir -> walkDir (walkDirF f baseDir) baseDir
+
+-- | A version of 'walkDirAccum' with the base directory (the directory where the 
+-- traversal begins) stripped.
+--
+-- @since X.X.X
+
+walkDirAccumRel
+  :: (MonadIO m, MonadThrow m, Monoid o)
+  => Maybe (Path Rel Dir -> [Path Rel Dir] -> [Path Rel File] -> m (WalkAction Rel))
+  -> (Path Rel Dir -> [Path Rel Dir] -> [Path Rel File] -> m o)
+  -> Path b Dir
+  -> m o
+walkDirAccumRel Nothing  g = makeAbsolute >=> \baseDir ->
+  walkDirAccum Nothing (walkF g baseDir) baseDir
+walkDirAccumRel (Just f) g = makeAbsolute >=> \baseDir ->
+  walkDirAccum (Just $ walkDirF f baseDir) (walkF g baseDir) baseDir
+
+walkActionF :: Path Abs Dir -> WalkAction Rel -> WalkAction Abs
+walkActionF _       WalkFinish         = WalkFinish
+walkActionF baseDir (WalkExclude dirs) = WalkExclude $ map (baseDir </>) dirs
+{-# INLINE walkActionF #-}
+
+walkDirF
+  :: MonadThrow m
+  => (Path Rel Dir -> [Path Rel Dir] -> [Path Rel File] -> m (WalkAction Rel))
+  -> Path Abs Dir -> Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m (WalkAction Abs)
+walkDirF f baseDir dir subdirs = liftM (walkActionF baseDir) . walkF f baseDir dir subdirs
+{-# INLINE walkDirF #-}
+
+walkF
+  :: MonadThrow m
+  => (Path Rel Dir -> [Path Rel Dir] -> [Path Rel File] -> m a)
+  -> Path Abs Dir -> Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m a
+walkF f baseDir dir subdirs files = do
+    dir' <- stripProperPrefix baseDir dir
+    subdirs' <- mapM (stripProperPrefix baseDir) subdirs
+    files' <- mapM (stripProperPrefix baseDir) files
+    f dir' subdirs' files'
+{-# INLINE walkF #-}
 
 ----------------------------------------------------------------------------
 -- Current working directory

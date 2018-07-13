@@ -1,3 +1,8 @@
+## Path IO 1.4.0
+
+* Added relative versions of some actions: `listDirRel`, `listDirRecurRel`,
+  `walkDirRel`, and `walkDirAccumRel`.
+
 ## Path IO 1.3.3
 
 * (Hopefully) fixed test suite failure with Cabal 2.0 and GHC 8.2.1.

@@ -26,13 +26,17 @@ module Path.IO
   , removeDirRecur
   , renameDir
   , listDir
+  , listDirRel
   , listDirRecur
+  , listDirRecurRel
   , copyDirRecur
   , copyDirRecur'
     -- ** Walking directory trees
   , WalkAction (..)
   , walkDir
+  , walkDirRel
   , walkDirAccum
+  , walkDirAccumRel
     -- ** Current working directory
   , getCurrentDir
   , setCurrentDir
@@ -105,7 +109,7 @@ import Control.Monad.Catch
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
-import Control.Monad.Trans.Writer.Lazy (execWriterT, tell)
+import Control.Monad.Trans.Writer.Lazy (WriterT, execWriterT, tell)
 import Data.Either (lefts, rights)
 import Data.List ((\\))
 import Data.Time (UTCTime)
@@ -317,15 +321,27 @@ renameDir = liftD2 D.renameDirectory
 listDir :: MonadIO m
   => Path b Dir        -- ^ Directory to list
   -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
-listDir path = liftIO $ do
+listDir path = do
   bpath <- makeAbsolute path
-  raw   <- liftD D.getDirectoryContents bpath
+  (subdirs, files) <- listDirRel bpath
+  return ( (bpath </>) <$> subdirs
+         , (bpath </>) <$> files
+         )
+
+-- | The same as 'listDir' but returns relative paths.
+--
+-- @since 1.4.0
+
+listDirRel :: MonadIO m
+  => Path b Dir        -- ^ Directory to list
+  -> m ([Path Rel Dir], [Path Rel File]) -- ^ Sub-directories and files
+listDirRel path = liftIO $ do
+  raw   <- liftD D.getDirectoryContents path
   items <- forM (raw \\ [".", ".."]) $ \item -> do
-    let ipath = toFilePath bpath F.</> item
-    isDir <- liftIO (D.doesDirectoryExist ipath)
+    isDir <- liftIO (D.doesDirectoryExist $ toFilePath path F.</> item)
     if isDir
-      then Left  `liftM` parseAbsDir  ipath
-      else Right `liftM` parseAbsFile ipath
+      then Left  <$> parseRelDir  item
+      else Right <$> parseRelFile item
   return (lefts items, rights items)
 
 -- | Similar to 'listDir', but recursively traverses every sub-directory
@@ -337,11 +353,36 @@ listDir path = liftIO $ do
 listDirRecur :: MonadIO m
   => Path b Dir                          -- ^ Directory to list
   -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
-listDirRecur dir = (DList.toList *** DList.toList)
-  `liftM` walkDirAccum (Just excludeSymlinks) writer dir
+listDirRecur = listDirRecurWith walkDirAccum
+
+-- | The same as 'listDirRecur' but returns relative paths.
+--
+-- @since 1.4.0
+
+listDirRecurRel :: MonadIO m
+  => Path b Dir                          -- ^ Directory to list
+  -> m ([Path Rel Dir], [Path Rel File]) -- ^ Sub-directories and files
+listDirRecurRel = listDirRecurWith walkDirAccumRel
+
+-- | A non-public helper function used to define 'listDirRecur' and
+-- 'listDirRecurRel'.
+
+listDirRecurWith :: MonadIO m
+  => (  Maybe (Path b Dir -> [Path b Dir] -> [Path b File] -> m (WalkAction b))
+     -> (  Path b Dir
+        -> [Path b Dir]
+        -> [Path b File]
+        -> m (DList.DList (Path b Dir), DList.DList (Path b File)))
+     -> Path b' Dir
+     -> m (DList.DList (Path b Dir), DList.DList (Path b File)))
+     -- ^ The walk function to use
+  -> Path b' Dir                     -- ^ Directory to list
+  -> m ([Path b Dir], [Path b File]) -- ^ Sub-directories and files
+listDirRecurWith walkF dir = (DList.toList *** DList.toList)
+  <$> walkF (Just excludeSymlinks) writer dir
   where
     excludeSymlinks _ subdirs _ =
-      WalkExclude `liftM` filterM isSymlink subdirs
+      WalkExclude <$> filterM isSymlink subdirs
     writer _ ds fs = return (DList.fromList ds, DList.fromList fs)
 
 -- | Copies a directory recursively. It /does not/ follow symbolic links and
@@ -392,7 +433,7 @@ copyDirRecurGen p src dest = liftIO $ do
         -> Path Abs Dir
         -> Path Abs t
         -> IO (Path Abs t)
-      swapParent old new path = (new </>) `liftM`
+      swapParent old new path = (new </>) <$>
 #if MIN_VERSION_path(0,6,0)
         stripProperPrefix old path
 #else
@@ -443,11 +484,14 @@ copyDirRecurGen p src dest = liftIO $ do
 -- | Action returned by the traversal handler function. The action controls
 -- how the traversal will proceed.
 --
+-- __Note__: in version /1.4.0/ the type was adjusted to have the @b@ type
+-- parameter.
+--
 -- @since 1.2.0
 
-data WalkAction
+data WalkAction b
   = WalkFinish                  -- ^ Finish the entire walk altogether
-  | WalkExclude [Path Abs Dir]  -- ^ List of sub-directories to exclude from
+  | WalkExclude [Path b Dir]    -- ^ List of sub-directories to exclude from
                                 -- descending
   deriving (Eq, Show)
 
@@ -464,13 +508,13 @@ data WalkAction
 
 walkDir
   :: MonadIO m
-  => (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m WalkAction)
+  => (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m (WalkAction Abs))
      -- ^ Handler (@dir -> subdirs -> files -> 'WalkAction'@)
   -> Path b Dir
      -- ^ Directory where traversal begins
   -> m ()
-walkDir handler topdir =
-  makeAbsolute topdir >>= walkAvoidLoop S.empty >> return ()
+walkDir handler topdir = void $
+  makeAbsolute topdir >>= walkAvoidLoop S.empty
   where
     walkAvoidLoop traversed curdir = do
       mRes <- checkLoop traversed curdir
@@ -499,6 +543,38 @@ walkDir handler topdir =
         then Nothing
         else Just (S.insert ufid traversed)
 
+-- | The same as 'walkDir' but uses relative paths.
+--
+-- @since 1.4.0
+
+walkDirRel
+  :: MonadIO m
+  => (Path Rel Dir -> [Path Rel Dir] -> [Path Rel File] -> m (WalkAction Rel))
+     -- ^ Handler (@dir -> subdirs -> files -> 'WalkAction'@)
+  -> Path b Dir
+     -- ^ Directory where traversal begins
+  -> m ()
+walkDirRel handler' topdir' = do
+  topdir <- makeAbsolute topdir'
+  let stripTopdir :: MonadIO m => Path Abs f -> m (Path Rel f)
+      stripTopdir = liftIO .
+#if MIN_VERSION_path(0,6,0)
+        stripProperPrefix topdir
+#else
+        stripDir topdir
+#endif
+      handler curdir subdirs files = do
+        -- These should not ever fail.
+        curdirRel  <- stripTopdir curdir
+        subdirsRel <- mapM stripTopdir subdirs
+        filesRel   <- mapM stripTopdir files
+        action     <- handler' curdirRel subdirsRel filesRel
+        return $ case action of
+          WalkFinish ->  WalkFinish
+          WalkExclude xdirs -> WalkExclude $
+            (topdir </>) <$> xdirs
+  walkDir handler topdir
+
 -- | Similar to 'walkDir' but accepts a 'Monoid'-returning output writer as
 -- well. Values returned by the output writer invocations are accumulated
 -- and returned.
@@ -511,7 +587,8 @@ walkDir handler topdir =
 
 walkDirAccum
   :: (MonadIO m, Monoid o)
-  => Maybe (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m WalkAction)
+  => Maybe
+       (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m (WalkAction Abs))
     -- ^ Descend handler (@dir -> subdirs -> files -> 'WalkAction'@),
     -- descend the whole tree if omitted
   -> (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m o)
@@ -520,7 +597,48 @@ walkDirAccum
      -- ^ Directory where traversal begins
   -> m o
      -- ^ Accumulation of outputs generated by the output writer invocations
-walkDirAccum dHandler writer topdir = execWriterT (walkDir handler topdir)
+walkDirAccum = walkDirAccumWith walkDir
+
+-- | The same as 'walkDirAccum' but uses relative paths.
+--
+-- @since 1.4.0
+
+walkDirAccumRel
+  :: (MonadIO m, Monoid o)
+  => Maybe
+       (Path Rel Dir -> [Path Rel Dir] -> [Path Rel File] -> m (WalkAction Rel))
+    -- ^ Descend handler (@dir -> subdirs -> files -> 'WalkAction'@),
+    -- descend the whole tree if omitted
+  -> (Path Rel Dir -> [Path Rel Dir] -> [Path Rel File] -> m o)
+     -- ^ Output writer (@dir -> subdirs -> files -> o@)
+  -> Path b Dir
+     -- ^ Directory where traversal begins
+  -> m o
+     -- ^ Accumulation of outputs generated by the output writer invocations
+walkDirAccumRel = walkDirAccumWith walkDirRel
+
+walkDirAccumWith
+  :: (MonadIO m, Monoid o)
+  => (  (  Path a Dir
+        -> [Path a Dir]
+        -> [Path a File]
+        -> WriterT o m (WalkAction a)
+        )
+        -> Path b Dir
+        -> WriterT o m ()
+     )
+    -- ^ The walk function we use
+  -> Maybe (Path a Dir -> [Path a Dir] -> [Path a File] -> m (WalkAction a))
+    -- ^ Descend handler (@dir -> subdirs -> files -> 'WalkAction'@),
+    -- descend the whole tree if omitted
+  -> (Path a Dir -> [Path a Dir] -> [Path a File] -> m o)
+     -- ^ Output writer (@dir -> subdirs -> files -> o@)
+  -> Path b Dir
+     -- ^ Directory where traversal begins
+  -> m o
+     -- ^ Accumulation of outputs generated by the output writer invocations
+walkDirAccumWith walkF dHandler writer topdir =
+  execWriterT (walkF handler topdir)
   where
     handler dir subdirs files = do
       res <- lift $ writer dir subdirs files
@@ -993,7 +1111,7 @@ copyFile = liftD2 D.copyFile
 findExecutable :: MonadIO m
   => Path Rel File     -- ^ Executable file name
   -> m (Maybe (Path Abs File)) -- ^ Path to found executable
-findExecutable = liftM (>>= parseAbsFile) . liftD D.findExecutable
+findExecutable = fmap (>>= parseAbsFile) . liftD D.findExecutable
 
 -- | Search through the given set of directories for the given file.
 
@@ -1003,7 +1121,7 @@ findFile :: MonadIO m
   -> m (Maybe (Path Abs File)) -- ^ Absolute path to file (if found)
 findFile [] _ = return Nothing
 findFile (d:ds) file = do
-  bfile <- (</> file) `liftM` makeAbsolute d
+  bfile <- (</> file) <$> makeAbsolute d
   exist <- doesFileExist bfile
   if exist
     then return (Just bfile)
@@ -1029,11 +1147,11 @@ findFilesWith :: MonadIO m
   -> m [Path Abs File] -- ^ Absolute paths to all found files
 findFilesWith _ [] _ = return []
 findFilesWith f (d:ds) file = do
-  bfile <- (</> file) `liftM` makeAbsolute d
+  bfile <- (</> file) <$> makeAbsolute d
   exist <- doesFileExist file
   b <- if exist then f bfile else return False
   if b
-    then (bfile:) `liftM` findFilesWith f ds file
+    then (bfile:) <$> findFilesWith f ds file
     else findFilesWith f ds file
 
 ----------------------------------------------------------------------------
@@ -1044,7 +1162,7 @@ findFilesWith f (d:ds) file = do
 -- @since 1.3.0
 
 isSymlink :: MonadIO m => Path b t -> m Bool
-isSymlink p = liftIO $ liftM P.isSymbolicLink (P.getSymbolicLinkStatus path)
+isSymlink p = liftIO (P.isSymbolicLink <$> P.getSymbolicLinkStatus path)
   where
     -- NOTE: To be able to correctly check whether it is a symlink or not we
     -- have to drop the trailing separator from the dir path.
@@ -1142,7 +1260,7 @@ openTempFile :: MonadIO m
 openTempFile path t = liftIO $ do
   apath <- makeAbsolute path
   (tfile, h) <- liftD2' T.openTempFile apath t
-  (,h) `liftM` parseAbsFile tfile
+  (,h) <$> parseAbsFile tfile
 
 -- | Like 'openTempFile', but opens the file in binary mode. On Windows,
 -- reading a file in text mode (which is the default) will translate @CRLF@
@@ -1161,7 +1279,7 @@ openBinaryTempFile :: MonadIO m
 openBinaryTempFile path t = liftIO $ do
   apath <- makeAbsolute path
   (tfile, h) <- liftD2' T.openBinaryTempFile apath t
-  (,h) `liftM` parseAbsFile tfile
+  (,h) <$> parseAbsFile tfile
 
 -- | Create a temporary directory. The created directory isn't deleted
 -- automatically, so you need to delete it manually.
@@ -1211,7 +1329,7 @@ isLocationOccupied path = do
 
 forgivingAbsence :: (MonadIO m, MonadCatch m) => m a -> m (Maybe a)
 forgivingAbsence f = catchIf isDoesNotExistError
-  (Just `liftM` f)
+  (Just <$> f)
   (const $ return Nothing)
 
 -- | The same as 'forgivingAbsence', but ignores result.
@@ -1219,7 +1337,7 @@ forgivingAbsence f = catchIf isDoesNotExistError
 -- @since 0.3.1
 
 ignoringAbsence :: (MonadIO m, MonadCatch m) => m a -> m ()
-ignoringAbsence = liftM (const ()) . forgivingAbsence
+ignoringAbsence = void . forgivingAbsence
 
 ----------------------------------------------------------------------------
 -- Permissions

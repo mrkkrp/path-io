@@ -318,16 +318,10 @@ renameDir = liftD2 D.renameDirectory
 listDir :: MonadIO m
   => Path b Dir        -- ^ Directory to list
   -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
-listDir path = liftIO $ do
+listDir path = do
   bpath <- makeAbsolute path
-  raw   <- liftD D.getDirectoryContents bpath
-  items <- forM (raw \\ [".", ".."]) $ \item -> do
-    let ipath = toFilePath bpath F.</> item
-    isDir <- liftIO (D.doesDirectoryExist ipath)
-    if isDir
-      then Left  `liftM` parseAbsDir  ipath
-      else Right `liftM` parseAbsFile ipath
-  return (lefts items, rights items)
+  items <- listDir' path
+  return $ ((map (bpath </>)) *** (map (bpath </>))) items
 
 listDir' :: MonadIO m
   => Path b Dir        -- ^ Directory to list

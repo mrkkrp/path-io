@@ -26,6 +26,7 @@ module Path.IO
   , removeDirRecur
   , renameDir
   , listDir
+  , listDir'
   , listDirRecur
   , copyDirRecur
   , copyDirRecur'
@@ -326,6 +327,19 @@ listDir path = liftIO $ do
     if isDir
       then Left  `liftM` parseAbsDir  ipath
       else Right `liftM` parseAbsFile ipath
+  return (lefts items, rights items)
+
+listDir' :: MonadIO m
+  => Path b Dir        -- ^ Directory to list
+  -> m ([Path Rel Dir], [Path Rel File]) -- ^ Sub-directories and files
+listDir' path = liftIO $ do
+  bpath <- makeAbsolute path
+  raw   <- liftD D.getDirectoryContents bpath
+  items <- forM (raw \\ [".", ".."]) $ \item -> do
+    isDir <- liftIO (D.doesDirectoryExist $ toFilePath path F.</> item)
+    if isDir
+      then Left  `liftM` parseRelDir  item
+      else Right `liftM` parseRelFile item
   return (lefts items, rights items)
 
 -- | Similar to 'listDir', but recursively traverses every sub-directory

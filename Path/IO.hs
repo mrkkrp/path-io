@@ -350,12 +350,7 @@ listDir' path = liftIO $ do
 listDirRecur :: MonadIO m
   => Path b Dir                          -- ^ Directory to list
   -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
-listDirRecur dir = (DList.toList *** DList.toList)
-  `liftM` walkDirAccum (Just excludeSymlinks) writer dir
-  where
-    excludeSymlinks _ subdirs _ =
-      WalkExclude `liftM` filterM isSymlink subdirs
-    writer _ ds fs = return (DList.fromList ds, DList.fromList fs)
+listDirRecur = listDirRecurWith walkDirAccum
 
 listDirRecur' :: MonadIO m
   => Path b Dir                          -- ^ Directory to list

@@ -111,6 +111,7 @@ import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
 import Control.Monad.Trans.Writer.Lazy (execWriterT, tell)
 import Data.Either (lefts, rights)
 import Data.List ((\\))
+import Data.Maybe (catMaybes)
 import Data.Time (UTCTime)
 import Path
 import System.IO (Handle)
@@ -479,35 +480,15 @@ walkDir
   -> Path b Dir
      -- ^ Directory where traversal begins
   -> m ()
-walkDir handler topdir =
-  makeAbsolute topdir >>= walkAvoidLoop S.empty >> return ()
+walkDir handler topdir = do
+  topdir' <- makeAbsolute topdir
+  walkDir' (handler' topdir') topdir
   where
-    walkAvoidLoop traversed curdir = do
-      mRes <- checkLoop traversed curdir
-      case mRes of
-        Nothing -> return $ Just ()
-        Just traversed' -> walktree traversed' curdir
-
-    -- use Maybe monad to abort any further traversal if any of the
-    -- handler calls returns WalkFinish
-    walktree traversed curdir = do
-      (subdirs, files) <- listDir curdir
-      action <- handler curdir subdirs files
-      case action of
-        WalkFinish -> return Nothing
-        WalkExclude xdirs ->
-          case subdirs \\ xdirs of
-            [] -> return $ Just ()
-            ds -> runMaybeT $ mapM_ (MaybeT . walkAvoidLoop traversed) ds
-
-    checkLoop traversed dir = do
-      st <- liftIO $ P.getFileStatus (toFilePath dir)
-      let ufid = (P.deviceID st, P.fileID st)
-
-      -- check for loop, have we already traversed this dir?
-      return $ if S.member ufid traversed
-        then Nothing
-        else Just (S.insert ufid traversed)
+    handler' topdir' dir subdirs files = do
+        action <- handler (topdir' </> dir) (map (topdir' </>) subdirs) (map (topdir' </>) files)
+        return $ case action of
+            WalkFinish -> WalkFinish
+            WalkExclude xdirs -> WalkExclude $ catMaybes $ map (stripProperPrefix topdir') xdirs
 
 walkDir'
   :: MonadIO m

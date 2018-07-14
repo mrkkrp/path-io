@@ -14,6 +14,7 @@
 
 {-# LANGUAGE CPP               #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE QuasiQuotes       #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE TypeFamilies      #-}
 
@@ -26,13 +27,17 @@ module Path.IO
   , removeDirRecur
   , renameDir
   , listDir
+  , listDir'
   , listDirRecur
+  , listDirRecur'
   , copyDirRecur
   , copyDirRecur'
     -- ** Walking directory trees
   , WalkAction (..)
   , walkDir
+  , walkDir'
   , walkDirAccum
+  , walkDirAccum'
     -- ** Current working directory
   , getCurrentDir
   , setCurrentDir
@@ -105,9 +110,10 @@ import Control.Monad.Catch
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
-import Control.Monad.Trans.Writer.Lazy (execWriterT, tell)
+import Control.Monad.Trans.Writer.Lazy (WriterT, execWriterT, tell)
 import Data.Either (lefts, rights)
 import Data.List ((\\))
+import Data.Maybe (catMaybes)
 import Data.Time (UTCTime)
 import Path
 import System.IO (Handle)
@@ -317,15 +323,22 @@ renameDir = liftD2 D.renameDirectory
 listDir :: MonadIO m
   => Path b Dir        -- ^ Directory to list
   -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
-listDir path = liftIO $ do
+listDir path = do
+  bpath <- makeAbsolute path
+  items <- listDir' path
+  return $ ((map (bpath </>)) *** (map (bpath </>))) items
+
+listDir' :: MonadIO m
+  => Path b Dir        -- ^ Directory to list
+  -> m ([Path Rel Dir], [Path Rel File]) -- ^ Sub-directories and files
+listDir' path = liftIO $ do
   bpath <- makeAbsolute path
   raw   <- liftD D.getDirectoryContents bpath
   items <- forM (raw \\ [".", ".."]) $ \item -> do
-    let ipath = toFilePath bpath F.</> item
-    isDir <- liftIO (D.doesDirectoryExist ipath)
+    isDir <- liftIO (D.doesDirectoryExist $ toFilePath path F.</> item)
     if isDir
-      then Left  `liftM` parseAbsDir  ipath
-      else Right `liftM` parseAbsFile ipath
+      then Left  `liftM` parseRelDir  item
+      else Right `liftM` parseRelFile item
   return (lefts items, rights items)
 
 -- | Similar to 'listDir', but recursively traverses every sub-directory
@@ -337,8 +350,22 @@ listDir path = liftIO $ do
 listDirRecur :: MonadIO m
   => Path b Dir                          -- ^ Directory to list
   -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
-listDirRecur dir = (DList.toList *** DList.toList)
-  `liftM` walkDirAccum (Just excludeSymlinks) writer dir
+listDirRecur = listDirRecurWith walkDirAccum
+
+listDirRecur' :: MonadIO m
+  => Path b Dir                          -- ^ Directory to list
+  -> m ([Path Rel Dir], [Path Rel File]) -- ^ Sub-directories and files
+listDirRecur' = listDirRecurWith walkDirAccum'
+
+listDirRecurWith :: MonadIO m
+  => (Maybe (Path a Dir -> [Path a Dir] -> [Path a File] -> m (WalkAction a))
+    -> (Path a Dir -> [Path a Dir] -> [Path a File] -> m (DList.DList (Path a Dir), DList.DList (Path a File)))
+    -> Path b Dir
+    -> m (DList.DList (Path a Dir), DList.DList (Path a File))) -- ^ The walk function we use
+  -> Path b Dir                      -- ^ Directory to list
+  -> m ([Path a Dir], [Path a File]) -- ^ Sub-directories and files
+listDirRecurWith walkF dir = (DList.toList *** DList.toList)
+  `liftM` walkF (Just excludeSymlinks) writer dir
   where
     excludeSymlinks _ subdirs _ =
       WalkExclude `liftM` filterM isSymlink subdirs
@@ -445,9 +472,9 @@ copyDirRecurGen p src dest = liftIO $ do
 --
 -- @since 1.2.0
 
-data WalkAction
+data WalkAction b
   = WalkFinish                  -- ^ Finish the entire walk altogether
-  | WalkExclude [Path Abs Dir]  -- ^ List of sub-directories to exclude from
+  | WalkExclude [Path b Dir]    -- ^ List of sub-directories to exclude from
                                 -- descending
   deriving (Eq, Show)
 
@@ -464,31 +491,53 @@ data WalkAction
 
 walkDir
   :: MonadIO m
-  => (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m WalkAction)
+  => (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m (WalkAction Abs))
      -- ^ Handler (@dir -> subdirs -> files -> 'WalkAction'@)
   -> Path b Dir
      -- ^ Directory where traversal begins
   -> m ()
-walkDir handler topdir =
-  makeAbsolute topdir >>= walkAvoidLoop S.empty >> return ()
+walkDir handler topdir = do
+  topdir' <- makeAbsolute topdir
+  walkDir' (handler' topdir') topdir
   where
-    walkAvoidLoop traversed curdir = do
-      mRes <- checkLoop traversed curdir
+    handler' topdir' dir subdirs files = do
+        action <- handler (topdir' </> dir) (map (topdir' </>) subdirs) (map (topdir' </>) files)
+        return $ case action of
+            WalkFinish -> WalkFinish
+            WalkExclude xdirs -> WalkExclude $ catMaybes $ map (stripProperPrefix topdir') xdirs
+
+walkDir'
+  :: MonadIO m
+  => (Path Rel Dir -> [Path Rel Dir] -> [Path Rel File] -> m (WalkAction Rel))
+     -- ^ Handler (@dir -> subdirs -> files -> 'WalkAction'@)
+  -> Path b Dir
+     -- ^ Directory where traversal begins
+  -> m ()
+walkDir' handler topdir = do
+  topdir' <- makeAbsolute topdir
+  walkAvoidLoop S.empty topdir' [reldir|.|] >> return ()
+  where
+    walkAvoidLoop traversed topdir' curdir = do
+      let curdir' = topdir' </> curdir
+      mRes <- checkLoop traversed curdir'
       case mRes of
         Nothing -> return $ Just ()
-        Just traversed' -> walktree traversed' curdir
+        Just traversed' -> walktree traversed' topdir' curdir
 
     -- use Maybe monad to abort any further traversal if any of the
     -- handler calls returns WalkFinish
-    walktree traversed curdir = do
-      (subdirs, files) <- listDir curdir
-      action <- handler curdir subdirs files
+    walktree traversed topdir' curdir = do
+      let curdir' = topdir' </> curdir
+      (subdirs, files) <- listDir' curdir'
+      let subdirs' = map (curdir </>) subdirs
+          files'   = map (curdir </>) files
+      action <- handler curdir subdirs' files'
       case action of
         WalkFinish -> return Nothing
         WalkExclude xdirs ->
-          case subdirs \\ xdirs of
+          case subdirs' \\ xdirs of
             [] -> return $ Just ()
-            ds -> runMaybeT $ mapM_ (MaybeT . walkAvoidLoop traversed) ds
+            ds -> runMaybeT $ mapM_ (MaybeT . walkAvoidLoop traversed topdir') ds
 
     checkLoop traversed dir = do
       st <- liftIO $ P.getFileStatus (toFilePath dir)
@@ -498,6 +547,7 @@ walkDir handler topdir =
       return $ if S.member ufid traversed
         then Nothing
         else Just (S.insert ufid traversed)
+
 
 -- | Similar to 'walkDir' but accepts a 'Monoid'-returning output writer as
 -- well. Values returned by the output writer invocations are accumulated
@@ -511,7 +561,7 @@ walkDir handler topdir =
 
 walkDirAccum
   :: (MonadIO m, Monoid o)
-  => Maybe (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m WalkAction)
+  => Maybe (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m (WalkAction Abs))
     -- ^ Descend handler (@dir -> subdirs -> files -> 'WalkAction'@),
     -- descend the whole tree if omitted
   -> (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m o)
@@ -520,7 +570,36 @@ walkDirAccum
      -- ^ Directory where traversal begins
   -> m o
      -- ^ Accumulation of outputs generated by the output writer invocations
-walkDirAccum dHandler writer topdir = execWriterT (walkDir handler topdir)
+walkDirAccum = walkDirAccumWith walkDir
+
+walkDirAccum'
+  :: (MonadIO m, Monoid o)
+  => Maybe (Path Rel Dir -> [Path Rel Dir] -> [Path Rel File] -> m (WalkAction Rel))
+    -- ^ Descend handler (@dir -> subdirs -> files -> 'WalkAction'@),
+    -- descend the whole tree if omitted
+  -> (Path Rel Dir -> [Path Rel Dir] -> [Path Rel File] -> m o)
+     -- ^ Output writer (@dir -> subdirs -> files -> o@)
+  -> Path b Dir
+     -- ^ Directory where traversal begins
+  -> m o
+     -- ^ Accumulation of outputs generated by the output writer invocations
+walkDirAccum' = walkDirAccumWith walkDir'
+
+walkDirAccumWith
+  :: (MonadIO m, Monoid o)
+  => ((Path a Dir -> [Path a Dir] -> [Path a File] -> WriterT o m (WalkAction a))
+    -> Path b Dir
+    -> WriterT o m ()) -- ^ The walk function we use
+  -> Maybe (Path a Dir -> [Path a Dir] -> [Path a File] -> m (WalkAction a))
+    -- ^ Descend handler (@dir -> subdirs -> files -> 'WalkAction'@),
+    -- descend the whole tree if omitted
+  -> (Path a Dir -> [Path a Dir] -> [Path a File] -> m o)
+     -- ^ Output writer (@dir -> subdirs -> files -> o@)
+  -> Path b Dir
+     -- ^ Directory where traversal begins
+  -> m o
+     -- ^ Accumulation of outputs generated by the output writer invocations
+walkDirAccumWith walkF dHandler writer topdir = execWriterT (walkF handler topdir)
   where
     handler dir subdirs files = do
       res <- lift $ writer dir subdirs files

@@ -453,9 +453,9 @@ copyDirRecurGen p src dest = liftIO $ do
 --
 -- @since 1.2.0
 
-data WalkAction
+data WalkAction b
   = WalkFinish                  -- ^ Finish the entire walk altogether
-  | WalkExclude [Path Abs Dir]  -- ^ List of sub-directories to exclude from
+  | WalkExclude [Path b Dir]    -- ^ List of sub-directories to exclude from
                                 -- descending
   deriving (Eq, Show)
 
@@ -472,7 +472,7 @@ data WalkAction
 
 walkDir
   :: MonadIO m
-  => (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m WalkAction)
+  => (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m (WalkAction Abs))
      -- ^ Handler (@dir -> subdirs -> files -> 'WalkAction'@)
   -> Path b Dir
      -- ^ Directory where traversal begins
@@ -519,7 +519,7 @@ walkDir handler topdir =
 
 walkDirAccum
   :: (MonadIO m, Monoid o)
-  => Maybe (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m WalkAction)
+  => Maybe (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m (WalkAction Abs))
     -- ^ Descend handler (@dir -> subdirs -> files -> 'WalkAction'@),
     -- descend the whole tree if omitted
   -> (Path Abs Dir -> [Path Abs Dir] -> [Path Abs File] -> m o)

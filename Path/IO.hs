@@ -14,6 +14,7 @@
 
 {-# LANGUAGE CPP               #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE QuasiQuotes       #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE TypeFamilies      #-}
 
@@ -33,6 +34,7 @@ module Path.IO
     -- ** Walking directory trees
   , WalkAction (..)
   , walkDir
+  , walkDir'
   , walkDirAccum
     -- ** Current working directory
   , getCurrentDir
@@ -506,6 +508,49 @@ walkDir handler topdir =
       return $ if S.member ufid traversed
         then Nothing
         else Just (S.insert ufid traversed)
+
+walkDir'
+  :: MonadIO m
+  => (Path Rel Dir -> [Path Rel Dir] -> [Path Rel File] -> m (WalkAction Rel))
+     -- ^ Handler (@dir -> subdirs -> files -> 'WalkAction'@)
+  -> Path b Dir
+     -- ^ Directory where traversal begins
+  -> m ()
+walkDir' handler topdir = do
+  topdir' <- makeAbsolute topdir
+  walkAvoidLoop S.empty topdir' [reldir|.|] >> return ()
+  where
+    walkAvoidLoop traversed topdir' curdir = do
+      let curdir' = topdir' </> curdir
+      mRes <- checkLoop traversed curdir'
+      case mRes of
+        Nothing -> return $ Just ()
+        Just traversed' -> walktree traversed' topdir' curdir
+
+    -- use Maybe monad to abort any further traversal if any of the
+    -- handler calls returns WalkFinish
+    walktree traversed topdir' curdir = do
+      let curdir' = topdir' </> curdir
+      (subdirs, files) <- listDir' curdir'
+      let subdirs' = map (curdir </>) subdirs
+          files'   = map (curdir </>) files
+      action <- handler curdir subdirs' files'
+      case action of
+        WalkFinish -> return Nothing
+        WalkExclude xdirs ->
+          case subdirs' \\ xdirs of
+            [] -> return $ Just ()
+            ds -> runMaybeT $ mapM_ (MaybeT . walkAvoidLoop traversed topdir') ds
+
+    checkLoop traversed dir = do
+      st <- liftIO $ P.getFileStatus (toFilePath dir)
+      let ufid = (P.deviceID st, P.fileID st)
+
+      -- check for loop, have we already traversed this dir?
+      return $ if S.member ufid traversed
+        then Nothing
+        else Just (S.insert ufid traversed)
+
 
 -- | Similar to 'walkDir' but accepts a 'Monoid'-returning output writer as
 -- well. Values returned by the output writer invocations are accumulated

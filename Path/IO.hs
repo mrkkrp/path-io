@@ -29,6 +29,7 @@ module Path.IO
   , listDir
   , listDir'
   , listDirRecur
+  , listDirRecur'
   , copyDirRecur
   , copyDirRecur'
     -- ** Walking directory trees
@@ -351,6 +352,25 @@ listDirRecur :: MonadIO m
   -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
 listDirRecur dir = (DList.toList *** DList.toList)
   `liftM` walkDirAccum (Just excludeSymlinks) writer dir
+  where
+    excludeSymlinks _ subdirs _ =
+      WalkExclude `liftM` filterM isSymlink subdirs
+    writer _ ds fs = return (DList.fromList ds, DList.fromList fs)
+
+listDirRecur' :: MonadIO m
+  => Path b Dir                          -- ^ Directory to list
+  -> m ([Path Rel Dir], [Path Rel File]) -- ^ Sub-directories and files
+listDirRecur' = listDirRecurWith walkDirAccum'
+
+listDirRecurWith :: MonadIO m
+  => (Maybe (Path a Dir -> [Path a Dir] -> [Path a File] -> m (WalkAction a))
+    -> (Path a Dir -> [Path a Dir] -> [Path a File] -> m (DList.DList (Path a Dir), DList.DList (Path a File)))
+    -> Path b Dir
+    -> m (DList.DList (Path a Dir), DList.DList (Path a File))) -- ^ The walk function we use
+  -> Path b Dir                      -- ^ Directory to list
+  -> m ([Path a Dir], [Path a File]) -- ^ Sub-directories and files
+listDirRecurWith walkF dir = (DList.toList *** DList.toList)
+  `liftM` walkF (Just excludeSymlinks) writer dir
   where
     excludeSymlinks _ subdirs _ =
       WalkExclude `liftM` filterM isSymlink subdirs

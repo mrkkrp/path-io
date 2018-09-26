@@ -126,9 +126,6 @@ import qualified System.PosixCompat.Files as P
 #if MIN_VERSION_directory(1,2,3)
 import System.Directory (XdgDirectory)
 #endif
-#if !MIN_VERSION_base(4,8,0)
-import Data.Monoid (Monoid)
-#endif
 
 ----------------------------------------------------------------------------
 -- Actions on directories

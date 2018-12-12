@@ -36,6 +36,7 @@ main = hspec . around withSandbox $ do
   describe "getCurrentDir"    getCurrentDirSpec
   describe "setCurrentDir"    setCurrentDirSpec
   describe "withCurrentDir"   withCurrentDirSpec
+  describe "walkDirRel"       walkDirRelSpec
 #ifndef mingw32_HOST_OS
   -- NOTE We can't quite test this on Windows as well, because the
   -- environmental variables HOME and TMPDIR do not exist there.
@@ -159,6 +160,15 @@ withCurrentDirSpec = it "temporarily modifies current dir" $ \dir -> do
   withCurrentDir dir $
     getCurrentDir `shouldReturn` dir
   getCurrentDir `shouldNotReturn` dir
+
+walkDirRelSpec :: SpecWith (Path Abs Dir)
+walkDirRelSpec = it "does not throw exceptions" $ \dir -> do
+  let handler curdir subdirs files = do
+        curdir `shouldBe` $(mkRelDir ".")
+        subdirs `shouldBe` []
+        files `shouldBe` []
+        return WalkFinish
+  walkDirRel handler dir
 
 getHomeDirSpec :: SpecWith (Path Abs Dir)
 getHomeDirSpec =

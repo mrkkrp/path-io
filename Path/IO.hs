@@ -14,6 +14,7 @@
 
 {-# LANGUAGE CPP               #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE TypeFamilies      #-}
 
@@ -561,8 +562,9 @@ walkDirRel handler' topdir' = do
         stripDir topdir
 #endif
       handler curdir subdirs files = do
-        -- These should not ever fail.
-        curdirRel  <- stripTopdir curdir
+        curdirRel  <- if curdir == topdir
+          then return $(mkRelDir ".")
+          else stripTopdir curdir
         subdirsRel <- mapM stripTopdir subdirs
         filesRel   <- mapM stripTopdir files
         action     <- handler' curdirRel subdirsRel filesRel

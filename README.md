@@ -17,6 +17,6 @@ Consult Haddocks for usage, which should be trivial.
 
 ## License
 
-Copyright © 2016–2018 Mark Karpov
+Copyright © 2016–2019 Mark Karpov
 
 Distributed under BSD 3 clause license.

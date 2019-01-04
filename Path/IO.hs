@@ -432,11 +432,7 @@ copyDirRecurGen p src dest = liftIO $ do
         -> Path Abs t
         -> IO (Path Abs t)
       swapParent old new path = (new </>) <$>
-#if MIN_VERSION_path(0,6,0)
         stripProperPrefix old path
-#else
-        stripDir old path
-#endif
   tdirs  <- mapM (swapParent bsrc bdest) dirs
   tfiles <- mapM (swapParent bsrc bdest) files
   ensureDir bdest
@@ -556,11 +552,7 @@ walkDirRel handler' topdir' = do
   topdir <- makeAbsolute topdir'
   let stripTopdir :: MonadIO m => Path Abs f -> m (Path Rel f)
       stripTopdir = liftIO .
-#if MIN_VERSION_path(0,6,0)
         stripProperPrefix topdir
-#else
-        stripDir topdir
-#endif
       handler curdir subdirs files = do
         curdirRel  <- if curdir == topdir
           then return $(mkRelDir ".")

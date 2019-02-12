@@ -351,37 +351,33 @@ listDirRel path = liftIO $ do
 listDirRecur :: MonadIO m
   => Path b Dir                          -- ^ Directory to list
   -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
-listDirRecur = listDirRecurWith walkDirAccum
+listDirRecur dir = (DList.toList *** DList.toList)
+  <$> walkDirAccum (Just excludeSymlinks) writer dir
+  where
+    excludeSymlinks _ subdirs _ =
+      WalkExclude <$> filterM isSymlink subdirs
+    writer _ ds fs = return
+      ( DList.fromList ds
+      , DList.fromList fs
+      )
 
--- | The same as 'listDirRecur' but returns relative paths.
+-- | The same as 'listDirRecur' but returns paths that are relative to the
+-- given directory.
 --
--- @since 1.4.0
+-- @since 1.4.2
 
 listDirRecurRel :: MonadIO m
   => Path b Dir                          -- ^ Directory to list
   -> m ([Path Rel Dir], [Path Rel File]) -- ^ Sub-directories and files
-listDirRecurRel = listDirRecurWith walkDirAccumRel
-
--- | A non-public helper function used to define 'listDirRecur' and
--- 'listDirRecurRel'.
-
-listDirRecurWith :: MonadIO m
-  => (  Maybe (Path b Dir -> [Path b Dir] -> [Path b File] -> m (WalkAction b))
-     -> (  Path b Dir
-        -> [Path b Dir]
-        -> [Path b File]
-        -> m (DList.DList (Path b Dir), DList.DList (Path b File)))
-     -> Path b' Dir
-     -> m (DList.DList (Path b Dir), DList.DList (Path b File)))
-     -- ^ The walk function to use
-  -> Path b' Dir                     -- ^ Directory to list
-  -> m ([Path b Dir], [Path b File]) -- ^ Sub-directories and files
-listDirRecurWith walkF dir = (DList.toList *** DList.toList)
-  <$> walkF (Just excludeSymlinks) writer dir
+listDirRecurRel dir = (DList.toList *** DList.toList)
+  <$> walkDirAccumRel (Just excludeSymlinks) writer dir
   where
-    excludeSymlinks _ subdirs _ =
-      WalkExclude <$> filterM isSymlink subdirs
-    writer _ ds fs = return (DList.fromList ds, DList.fromList fs)
+    excludeSymlinks tdir subdirs _ =
+      WalkExclude <$> filterM (isSymlink . (dir </>) . (tdir </>)) subdirs
+    writer tdir ds fs = return
+      ( DList.fromList ((tdir </>) <$> ds)
+      , DList.fromList ((tdir </>) <$> fs)
+      )
 
 -- | Copies a directory recursively. It /does not/ follow symbolic links and
 -- preserves permissions when possible. If the destination directory already
@@ -515,9 +511,6 @@ walkDir handler topdir = void $
       case mRes of
         Nothing -> return $ Just ()
         Just traversed' -> walktree traversed' curdir
-
-    -- use Maybe monad to abort any further traversal if any of the
-    -- handler calls returns WalkFinish
     walktree traversed curdir = do
       (subdirs, files) <- listDir curdir
       action <- handler curdir subdirs files
@@ -526,45 +519,58 @@ walkDir handler topdir = void $
         WalkExclude xdirs ->
           case subdirs \\ xdirs of
             [] -> return $ Just ()
-            ds -> runMaybeT $ mapM_ (MaybeT . walkAvoidLoop traversed) ds
-
+            ds -> runMaybeT $ mapM_
+              (MaybeT . walkAvoidLoop traversed)
+              ds
     checkLoop traversed dir = do
-      st <- liftIO $ P.getFileStatus (toFilePath dir)
+      st <- liftIO $ P.getFileStatus (fromAbsDir dir)
       let ufid = (P.deviceID st, P.fileID st)
-
-      -- check for loop, have we already traversed this dir?
       return $ if S.member ufid traversed
         then Nothing
         else Just (S.insert ufid traversed)
 
--- | The same as 'walkDir' but uses relative paths.
+-- | The same as 'walkDir' but uses relative paths. The handler is given
+-- @dir@, directory relative to the directory where traversal begins.
+-- Sub-directories and files are relative to @dir@.
 --
--- @since 1.4.0
+-- @since 1.4.2
 
 walkDirRel
   :: MonadIO m
-  => (Path Rel Dir -> [Path Rel Dir] -> [Path Rel File] -> m (WalkAction Rel))
+  => ( Path Rel Dir
+       -> [Path Rel Dir]
+       -> [Path Rel File]
+       -> m (WalkAction Rel)
+     )
      -- ^ Handler (@dir -> subdirs -> files -> 'WalkAction'@)
   -> Path b Dir
      -- ^ Directory where traversal begins
   -> m ()
-walkDirRel handler' topdir' = do
+walkDirRel handler topdir' = do
   topdir <- makeAbsolute topdir'
-  let stripTopdir :: MonadIO m => Path Abs f -> m (Path Rel f)
-      stripTopdir = liftIO .
-        stripProperPrefix topdir
-      handler curdir subdirs files = do
-        curdirRel  <- if curdir == topdir
-          then return $(mkRelDir ".")
-          else stripTopdir curdir
-        subdirsRel <- mapM stripTopdir subdirs
-        filesRel   <- mapM stripTopdir files
-        action     <- handler' curdirRel subdirsRel filesRel
-        return $ case action of
-          WalkFinish ->  WalkFinish
-          WalkExclude xdirs -> WalkExclude $
-            (topdir </>) <$> xdirs
-  walkDir handler topdir
+  let walkAvoidLoop traversed curdir = do
+        mRes <- checkLoop traversed (topdir </> curdir)
+        case mRes of
+          Nothing -> return $ Just ()
+          Just traversed' -> walktree traversed' curdir
+      walktree traversed curdir = do
+        (subdirs, files) <- listDirRel (topdir </> curdir)
+        action <- handler curdir subdirs files
+        case action of
+          WalkFinish -> return Nothing
+          WalkExclude xdirs ->
+            case subdirs \\ xdirs of
+              [] -> return $ Just ()
+              ds -> runMaybeT $ mapM_
+                (MaybeT . walkAvoidLoop traversed)
+                ((curdir </>) <$> ds)
+      checkLoop traversed dir = do
+        st <- liftIO $ P.getFileStatus (fromAbsDir dir)
+        let ufid = (P.deviceID st, P.fileID st)
+        return $ if S.member ufid traversed
+          then Nothing
+          else Just (S.insert ufid traversed)
+  void (walkAvoidLoop S.empty $(mkRelDir "."))
 
 -- | Similar to 'walkDir' but accepts a 'Monoid'-returning output writer as
 -- well. Values returned by the output writer invocations are accumulated
@@ -590,9 +596,11 @@ walkDirAccum
      -- ^ Accumulation of outputs generated by the output writer invocations
 walkDirAccum = walkDirAccumWith walkDir
 
--- | The same as 'walkDirAccum' but uses relative paths.
+-- | The same as 'walkDirAccum' but uses relative paths. The handler and
+-- writer are given @dir@, directory relative to the directory where
+-- traversal begins. Sub-directories and files are relative to @dir@.
 --
--- @since 1.4.0
+-- @since 1.4.2
 
 walkDirAccumRel
   :: (MonadIO m, Monoid o)
@@ -607,6 +615,8 @@ walkDirAccumRel
   -> m o
      -- ^ Accumulation of outputs generated by the output writer invocations
 walkDirAccumRel = walkDirAccumWith walkDirRel
+
+-- | Non-public helper function for defining accumulating walking actions.
 
 walkDirAccumWith
   :: (MonadIO m, Monoid o)

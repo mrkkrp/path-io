@@ -6,12 +6,13 @@ module Main (main) where
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class (MonadIO (..))
+import Data.Bifunctor
 import Data.List (sort)
 import Path
 import Path.IO
-import Test.Hspec
 import System.Environment
 import System.PosixCompat.Files
+import Test.Hspec
 
 #if !MIN_VERSION_base(4,8,0)
 import Control.Applicative ((<$>))
@@ -24,7 +25,9 @@ main = hspec . around withSandbox $ do
     -- NOTE These tests shall fail on Windows as unix-compat does not
     -- implement createSymbolicLink for windows.
     describe "listDir"          listDirSpec
+    describe "listDirRel"       listDirRelSpec
     describe "listDirRecur"     listDirRecurSpec
+    describe "listDirRecurRel"  listDirRecurRelSpec
     describe "listDirRecurWith" listDirRecurWithSpec
     describe "walkDir Finish"   walkDirFinishSpec
     describe "copyDirRecur"     copyDirRecurSpec
@@ -53,9 +56,17 @@ listDirSpec :: SpecWith (Path Abs Dir)
 listDirSpec = it "lists directory" $ \dir ->
   getDirStructure listDir dir `shouldReturn` populatedDirTop
 
+listDirRelSpec :: SpecWith (Path Abs Dir)
+listDirRelSpec = it "lists directory" $ \dir ->
+  getDirStructureRel listDirRel dir `shouldReturn` populatedDirTop
+
 listDirRecurSpec :: SpecWith (Path Abs Dir)
 listDirRecurSpec = it "lists directory recursively" $ \dir ->
   getDirStructure listDirRecur dir `shouldReturn` populatedDirStructure
+
+listDirRecurRelSpec :: SpecWith (Path Abs Dir)
+listDirRecurRelSpec = it "lists directory recursively" $ \dir ->
+  getDirStructureRel listDirRecurRel dir `shouldReturn` populatedDirStructure
 
 listDirRecurWithSpec :: SpecWith (Path Abs Dir)
 listDirRecurWithSpec =
@@ -75,18 +86,6 @@ listDirRecurWith dirPred filePred =
     d' <- filterM dirPred  d
     f' <- filterM filePred f
     return (d', f')
-
--- Follows symbolic links
-listDirRecurCyclic :: (MonadIO m, MonadThrow m)
-  => Path b Dir                          -- ^ Directory to list
-  -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
-listDirRecurCyclic = walkDirAccum Nothing (\_ d f -> return (d, f))
-
-listDirRecurCyclicSpec :: SpecWith (Path Abs Dir)
-listDirRecurCyclicSpec =
-  it "lists directory trees having traversal cycles" $ \dir ->
-    getDirStructure listDirRecurCyclic dir
-        `shouldReturn` populatedCyclicDirStructure
 
 -- | walkDir with a Finish handler may have unpredictable output depending on
 -- the order of traversal. The only guarantee is that we will finish only after
@@ -142,6 +141,18 @@ findFileSpec = it "finds a file lazily" $ \dir -> do
   let relFile = head (snd populatedDirTop)
   found <- findFile (dir : undefined) relFile
   found `shouldBe` Just (dir </> relFile)
+
+listDirRecurCyclicSpec :: SpecWith (Path Abs Dir)
+listDirRecurCyclicSpec =
+  it "lists directory trees having traversal cycles" $ \dir ->
+    getDirStructure listDirRecurCyclic dir
+        `shouldReturn` populatedCyclicDirStructure
+
+-- Follows symbolic links
+listDirRecurCyclic :: (MonadIO m, MonadThrow m)
+  => Path b Dir                          -- ^ Directory to list
+  -> m ([Path Abs Dir], [Path Abs File]) -- ^ Sub-directories and files
+listDirRecurCyclic = walkDirAccum Nothing (\_ d f -> return (d, f))
 
 getCurrentDirSpec :: SpecWith (Path Abs Dir)
 getCurrentDirSpec = it "returns current dir" $ \dir ->
@@ -266,6 +277,17 @@ getDirStructure f path = do
   rdirs  <- sort <$> mapM (makeRelative path) dirs
   rfiles <- sort <$> mapM (makeRelative path) files
   return (rdirs, rfiles)
+
+-- | A version of 'getDirStructure' that accepts scanning function that
+-- returns relative paths.
+
+getDirStructureRel
+  :: (Path Abs Dir -> IO ([Path Rel Dir], [Path Rel File]))
+     -- ^ Which function to use for scanning
+  -> Path Abs Dir
+     -- ^ Path to directory to scan
+  -> IO ([Path Rel Dir], [Path Rel File])
+getDirStructureRel f path = bimap sort sort <$> f path
 
 -- | Structure of directory created by the 'populatedDir' function. Please
 -- keep it sorted.

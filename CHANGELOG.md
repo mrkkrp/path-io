@@ -1,3 +1,8 @@
+## Path IO 1.4.2
+
+* Fixed various bugs in `listDirRecurRel`, `walkDirRel`, and
+  `walkDirAccumRel` and clarified their behavior in the docs.
+
 ## Path IO 1.4.1
 
 * Fixed a bug in `walkDirRel` that resulted in `NotAProperPrefix` exception

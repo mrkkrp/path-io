@@ -37,7 +37,7 @@ library
     ghc-options:      -Wall -Werror
   else
     ghc-options:      -O2 -Wall
- if flag(dev) && impl(ghc >= 8.0)
+  if flag(dev) && impl(ghc >= 8.0)
     ghc-options:      -Wcompat
                       -Wincomplete-record-updates
                       -Wincomplete-uni-patterns

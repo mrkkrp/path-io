@@ -14,10 +14,6 @@ import System.Environment
 import System.PosixCompat.Files
 import Test.Hspec
 
-#if !MIN_VERSION_base(4,8,0)
-import Control.Applicative ((<$>))
-#endif
-
 main :: IO ()
 main = hspec . around withSandbox $ do
 #ifndef mingw32_HOST_OS

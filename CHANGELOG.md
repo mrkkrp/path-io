@@ -1,3 +1,7 @@
+## Unreleased
+
+* Dropped support for GHC 7.10.
+
 ## Path IO 1.4.2
 
 * Fixed various bugs in `listDirRecurRel`, `walkDirRel`, and

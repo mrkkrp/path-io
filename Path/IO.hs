@@ -12,7 +12,6 @@
 -- scanning and copying of directories, working with temporary
 -- files\/directories, etc.
 
-{-# LANGUAGE CPP               #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE TupleSections     #-}
@@ -47,10 +46,8 @@ module Path.IO
   , getAppUserDataDir
   , getUserDocsDir
   , getTempDir
-#if MIN_VERSION_directory(1,2,3)
-  , XdgDirectory (..)
+  , D.XdgDirectory (..)
   , getXdgDir
-#endif
     -- * Path transformation
   , AnyPath (..)
   , resolveFile
@@ -96,11 +93,9 @@ module Path.IO
   , setPermissions
   , copyPermissions
     -- * Timestamps
-#if MIN_VERSION_directory(1,2,3)
   , getAccessTime
   , setAccessTime
   , setModificationTime
-#endif
   , getModificationTime )
 where
 
@@ -123,10 +118,6 @@ import qualified System.Directory         as D
 import qualified System.FilePath          as F
 import qualified System.IO.Temp           as T
 import qualified System.PosixCompat.Files as P
-
-#if MIN_VERSION_directory(1,2,3)
-import System.Directory (XdgDirectory)
-#endif
 
 ----------------------------------------------------------------------------
 -- Actions on directories
@@ -836,7 +827,6 @@ getUserDocsDir = liftIO $ D.getUserDocumentsDirectory >>= parseAbsDir
 getTempDir :: MonadIO m => m (Path Abs Dir)
 getTempDir = liftIO D.getTemporaryDirectory >>= resolveDir'
 
-#if MIN_VERSION_directory(1,2,3)
 -- | Obtain the paths to special directories for storing user-specific
 -- application data, configuration, and cache files, conforming to the
 -- <http://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html XDG Base Directory Specification>.
@@ -855,14 +845,13 @@ getTempDir = liftIO D.getTemporaryDirectory >>= resolveDir'
 -- @since 1.2.1
 
 getXdgDir :: MonadIO m
-  => XdgDirectory      -- ^ Which special directory
+  => D.XdgDirectory      -- ^ Which special directory
   -> Maybe (Path Rel Dir)
      -- ^ A relative path that is appended to the path; if 'Nothing', the
      -- base path is returned
   -> m (Path Abs Dir)
 getXdgDir xdgDir suffix =
   liftIO $ (D.getXdgDirectory xdgDir $ maybe "" toFilePath suffix) >>= parseAbsDir
-#endif
 
 ----------------------------------------------------------------------------
 -- Path transformation
@@ -1381,8 +1370,6 @@ copyPermissions = liftD2 D.copyPermissions
 ----------------------------------------------------------------------------
 -- Timestamps
 
-#if MIN_VERSION_directory(1,2,3)
-
 -- | Obtain the time at which the file or directory was last accessed.
 --
 -- The operation may fail with:
@@ -1457,7 +1444,6 @@ setAccessTime = liftD2' D.setAccessTime
 
 setModificationTime :: MonadIO m => Path b t -> UTCTime -> m ()
 setModificationTime = liftD2' D.setModificationTime
-#endif
 
 -- | Obtain the time at which the file or directory was last modified.
 --

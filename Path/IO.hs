@@ -48,6 +48,8 @@ module Path.IO
   , getTempDir
   , D.XdgDirectory (..)
   , getXdgDir
+  , D.XdgDirectoryList (..)
+  , getXdgDirList
     -- * Path transformation
   , AnyPath (..)
   , resolveFile
@@ -63,6 +65,10 @@ module Path.IO
   , findFiles
   , findFilesWith
     -- * Symbolic links
+  , createFileLink
+  , createDirLink
+  , removeDirLink
+  , getSymlinkTarget
   , isSymlink
     -- * Temporary files and directories
   , withTempFile
@@ -833,8 +839,8 @@ getTempDir = liftIO D.getTemporaryDirectory >>= resolveDir'
 -- Compared with 'getAppUserDataDir', this function provides a more
 -- fine-grained hierarchy as well as greater flexibility for the user.
 --
--- It also works on Windows, although in that case 'XdgData' and 'XdgConfig'
--- will map to the same directory.
+-- It also works on Windows, although in that case 'D.XdgData' and
+-- 'D.XdgConfig' will map to the same directory.
 --
 -- Note: The directory may not actually exist, in which case you would need
 -- to create it with file mode @700@ (i.e. only accessible by the owner).
@@ -852,6 +858,23 @@ getXdgDir :: MonadIO m
   -> m (Path Abs Dir)
 getXdgDir xdgDir suffix =
   liftIO $ (D.getXdgDirectory xdgDir $ maybe "" toFilePath suffix) >>= parseAbsDir
+
+-- | Similar to 'getXdgDir' but retrieves the entire list of XDG
+-- directories.
+--
+-- On Windows, 'D.XdgDataDirs' and 'D.XdgConfigDirs' usually map to the same
+-- list of directories unless overridden.
+--
+-- Refer to the docs of 'D.XdgDirectoryList' for more details.
+--
+-- @since 1.5.0
+
+getXdgDirList
+  :: MonadIO m
+  => D.XdgDirectoryList         -- ^ Which special directory list
+  -> m [Path Abs Dir]
+getXdgDirList xdgDirList =
+  liftIO (D.getXdgDirectoryList xdgDirList >>= mapM parseAbsDir)
 
 ----------------------------------------------------------------------------
 -- Path transformation
@@ -1147,16 +1170,126 @@ findFilesWith f (d:ds) file = do
 ----------------------------------------------------------------------------
 -- Symbolic links
 
+-- | Create a /file/ symbolic link. The target path can be either absolute
+-- or relative and need not refer to an existing file. The order of
+-- arguments follows the POSIX convention.
+--
+-- To remove an existing file symbolic link, use 'removeFile'.
+--
+-- Although the distinction between /file/ symbolic links and /directory/
+-- symbolic links does not exist on POSIX systems, on Windows this is an
+-- intrinsic property of every symbolic link and cannot be changed without
+-- recreating the link. A file symbolic link that actually points to a
+-- directory will fail to dereference and vice versa. Moreover, creating
+-- symbolic links on Windows may require privileges unavailable to users
+-- outside the Administrators group. Portable programs that use symbolic
+-- links should take both into consideration.
+--
+-- On Windows, the function is implemented using @CreateSymbolicLink@. Since
+-- 1.3.3.0, the @SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE@ flag is
+-- included if supported by the operating system. On POSIX, the function
+-- uses @symlink@ and is therefore atomic.
+--
+-- Windows-specific errors: This operation may fail with
+-- 'System.IO.Error.permissionErrorType' if the user lacks the privileges to
+-- create symbolic links. It may also fail with
+-- 'System.IO.Error.illegalOperationErrorType' if the file system does not
+-- support symbolic links.
+--
+-- @since 1.5.0
+
+createFileLink
+  :: MonadIO m
+  => Path b0 File               -- ^ Path to the target file
+  -> Path b1 File               -- ^ Path to the link to be created
+  -> m ()
+createFileLink = liftD2 D.createFileLink
+
+-- | Create a /directory/ symbolic link. The target path can be either
+-- absolute or relative and need not refer to an existing directory. The
+-- order of arguments follows the POSIX convention.
+--
+-- To remove an existing directory symbolic link, use 'removeDirLink'.
+--
+-- Although the distinction between /file/ symbolic links and /directory/
+-- symbolic links does not exist on POSIX systems, on Windows this is an
+-- intrinsic property of every symbolic link and cannot be changed without
+-- recreating the link. A file symbolic link that actually points to a
+-- directory will fail to dereference and vice versa. Moreover, creating
+-- symbolic links on Windows may require privileges unavailable to users
+-- outside the Administrators group. Portable programs that use symbolic
+-- links should take both into consideration.
+--
+-- On Windows, the function is implemented using @CreateSymbolicLink@ with
+-- @SYMBOLIC_LINK_FLAG_DIRECTORY@. Since 1.3.3.0, the
+-- @SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE@ flag is also included if
+-- supported by the operating system. On POSIX, this is an alias for
+-- 'createFileLink' and is therefore atomic.
+--
+-- Windows-specific errors: This operation may fail with
+-- 'System.IO.Error.permissionErrorType' if the user lacks the privileges to
+-- create symbolic links. It may also fail with
+-- 'System.IO.Error.illegalOperationErrorType' if the file system does not
+-- support symbolic links.
+--
+-- @since 1.5.0
+
+createDirLink
+  :: MonadIO m
+  => Path b0 Dir                -- ^ Path to the target directory
+  -> Path b1 Dir                -- ^ Path to the link to be created
+  -> m ()
+createDirLink = liftD2 D.createDirectoryLink
+
+-- | Remove an existing /directory/ symbolic link.
+--
+-- On Windows, this is an alias for 'removeDir'. On POSIX systems, this is
+-- an alias for 'removeFile'.
+--
+-- See also: 'removeFile', which can remove an existing /file/ symbolic link.
+--
+-- @since 1.5.0
+
+removeDirLink
+  :: MonadIO m
+  => Path b Dir                 -- ^ Path to the link to be removed
+  -> m ()
+removeDirLink = liftD D.removeDirectoryLink
+
+-- | Retrieve the target path of either a file or directory symbolic link.
+-- The returned path may not exist, and may not even be a valid path.
+--
+-- On Windows systems, this calls @DeviceIoControl@ with
+-- @FSCTL_GET_REPARSE_POINT@. In addition to symbolic links, the function
+-- also works on junction points. On POSIX systems, this calls @readlink@.
+--
+-- Windows-specific errors: This operation may fail with
+-- 'System.IO.Error.illegalOperationErrorType' if the file system does not
+-- support symbolic links.
+--
+-- @since 1.5.0
+
+getSymlinkTarget
+  :: MonadIO m
+  => Path b t                   -- ^ Symlink path
+  -> m FilePath
+getSymlinkTarget = liftD D.getSymbolicLinkTarget
+
+-- | Check whether the path refers to a symbolic link.  An exception is thrown
+-- if the path does not exist or is inaccessible.
+--
+-- On Windows, this checks for @FILE_ATTRIBUTE_REPARSE_POINT@.  In addition to
+-- symbolic links, the function also returns true on junction points.  On
+-- POSIX systems, this checks for @S_IFLNK@.
+--
+-- @since 1.5.0
+
 -- | Check if the given path is a symbolic link.
 --
 -- @since 1.3.0
 
 isSymlink :: MonadIO m => Path b t -> m Bool
-isSymlink p = liftIO (P.isSymbolicLink <$> P.getSymbolicLinkStatus path)
-  where
-    -- NOTE: To be able to correctly check whether it is a symlink or not we
-    -- have to drop the trailing separator from the dir path.
-    path = F.dropTrailingPathSeparator (toFilePath p)
+isSymlink = liftD (D.pathIsSymbolicLink . F.dropTrailingPathSeparator)
 
 ----------------------------------------------------------------------------
 -- Temporary files and directories

@@ -1,6 +1,8 @@
-## Unreleased
+## Path IO 1.5.0
 
 * Dropped support for GHC 8.0 and older.
+* Added new functions: `getXdgDirList`, `createFileLink`, `createDirLink`,
+  `removeDirLink`, `getSymlinkTarget`.
 
 ## Path IO 1.4.2
 

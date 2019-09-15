@@ -41,11 +41,9 @@ main = hspec . around withSandbox $ do
   -- environmental variables HOME and TMPDIR do not exist there.
   describe "getHomeDir"       getHomeDirSpec
   describe "getTempDir"       getTempDirSpec
-#if MIN_VERSION_directory(1,2,3)
   describe "getXdgDir Data"   getXdgDataDirSpec
   describe "getXdgDir Config" getXdgConfigDirSpec
   describe "getXdgDir Cache"  getXdgCacheDirSpec
-#endif
 #endif
 
 listDirSpec :: SpecWith (Path Abs Dir)
@@ -194,7 +192,6 @@ getTempDirSpec =
       unsetEnv evar
   where evar = "TMPDIR"
 
-#if MIN_VERSION_directory(1,2,3)
 getXdgDataDirSpec :: SpecWith (Path Abs Dir)
 getXdgDataDirSpec =
   it "XDG data dir is influenced by environment variable XDG_DATA_HOME" $ \dir ->
@@ -227,7 +224,6 @@ getXdgCacheDirSpec =
       unsetEnv evar
   where evar = "XDG_CACHE_HOME"
         name = $(mkRelDir "test")
-#endif
 
 ----------------------------------------------------------------------------
 -- Helpers

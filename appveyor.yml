@@ -5,7 +5,6 @@ environment:
   global:
     CABOPTS: "--store-dir=C:\\"
   matrix:
-    - GHCVER: "8.0.2"
     - GHCVER: "8.2.2"
     - GHCVER: "8.4.4"
     - GHCVER: "8.6.5"

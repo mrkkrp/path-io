@@ -29,7 +29,7 @@ library
                     , filepath     >= 1.2     && < 1.5
                     , path         >= 0.6     && < 0.7
                     , temporary    >= 1.1     && < 1.4
-                    , time         >= 1.4     && < 1.9
+                    , time         >= 1.4     && < 1.10
                     , transformers >= 0.3     && < 0.6
                     , unix-compat
   exposed-modules:    Path.IO

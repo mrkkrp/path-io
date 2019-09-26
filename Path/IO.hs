@@ -113,6 +113,7 @@ import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
 import Control.Monad.Trans.Writer.Lazy (WriterT, execWriterT, tell)
 import Data.Either (lefts, rights)
+import Data.Kind (Type)
 import Data.List ((\\))
 import Data.Time (UTCTime)
 import Path
@@ -886,11 +887,11 @@ class AnyPath path where
 
   -- | Type of absolute version of the given @path@.
 
-  type AbsPath path :: *
+  type AbsPath path :: Type
 
   -- | Type of relative version of the given @path@.
 
-  type RelPath path :: *
+  type RelPath path :: Type
 
   -- | Make a path absolute and remove as many indirections from it as
   -- possible. Indirections include the two special directories @.@ and

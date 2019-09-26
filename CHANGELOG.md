@@ -1,3 +1,7 @@
+## Unreleased
+
+* Dropped support for GHC 8.2.
+
 ## Path IO 1.5.0
 
 * Dropped support for GHC 8.0 and older.

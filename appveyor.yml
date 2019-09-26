@@ -5,9 +5,9 @@ environment:
   global:
     CABOPTS: "--store-dir=C:\\"
   matrix:
-    - GHCVER: "8.2.2"
     - GHCVER: "8.4.4"
     - GHCVER: "8.6.5"
+    - GHCVER: "8.8.1"
 
 cache:
   - "C:\\SR"
@@ -28,4 +28,4 @@ test_script:
   - cabal %CABOPTS% new-build --enable-tests --enable-benchmarks
   - cabal %CABOPTS% new-test
   - cabal %CABOPTS% new-haddock
-  - cabal %CABOPTS% sdist
+  - cabal %CABOPTS% new-sdist

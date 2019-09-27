@@ -7,13 +7,20 @@
 [![Build Status](https://travis-ci.org/mrkkrp/path-io.svg?branch=master)](https://travis-ci.org/mrkkrp/path-io)
 [![Build status](https://ci.appveyor.com/api/projects/status/q0orxo6856n18jvg/branch/master?svg=true)](https://ci.appveyor.com/project/mrkkrp/path-io/branch/master)
 
-This package provides an interface to
-the [`directory`](https://hackage.haskell.org/package/directory) package for
+This package provides an interface to the
+[`directory`](https://hackage.haskell.org/package/directory) package for
 users of Chris Done's [`path`](https://hackage.haskell.org/package/path). It
 also implements some missing stuff like recursive scanning and copying of
 directories, working with temporary files/directories, etc.
 
 Consult Haddocks for usage, which should be trivial.
+
+## Contribution
+
+Issues, bugs, and questions may be reported in [the GitHub issue tracker for
+this project](https://github.com/mrkkrp/path-io/issues).
+
+Pull requests are also welcome.
 
 ## License
 

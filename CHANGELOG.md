@@ -1,4 +1,16 @@
-## Unreleased
+## Path IO 1.6.0
+
+* Changed how `copyDirRecur` and `copyDirRecur'` functions work. Previously,
+  the functions created empty directories in the destination directory when
+  the source directory contained directory symlinks. The symlinked
+  directories were not recursively traversed. It also copied symlinked files
+  creating normal regular files in the target directory as the result. This
+  is fixed so that the function now behaves much like the `cp` utility, not
+  traversing symlinked directories, but recreating symlinks in the target
+  directory according to their targets in the source directory.
+
+* Fixed a bug in `createDirLink` which would always fail complaining that
+  its destination location does not exist.
 
 * Dropped support for GHC 8.2.
 

@@ -384,6 +384,15 @@ listDirRecurRel dir = (DList.toList *** DList.toList)
 -- ones.
 --
 -- __Note__: before version /1.3.0/, this function followed symlinks.
+--
+-- __Note__: before version /1.6.0/, the function created empty directories
+-- in the destination directory when the source directory contained
+-- directory symlinks. The symlinked directories were not recursively
+-- traversed. It also copied symlinked files creating normal regular files
+-- in the target directory as the result. This was fixed in the version
+-- /1.6.0/ so that the function now behaves much like the @cp@ utility, not
+-- traversing symlinked directories, but recreating symlinks in the target
+-- directory according to their targets in the source directory.
 
 copyDirRecur :: (MonadIO m, MonadCatch m)
   => Path b0 Dir       -- ^ Source
@@ -398,6 +407,15 @@ copyDirRecur = copyDirRecurGen True
 -- @since 1.1.0
 --
 -- __Note__: before version /1.3.0/, this function followed symlinks.
+--
+-- __Note__: before version /1.6.0/, the function created empty directories
+-- in the destination directory when the source directory contained
+-- directory symlinks. The symlinked directories were not recursively
+-- traversed. It also copied symlinked files creating normal regular files
+-- in the target directory as the result. This was fixed in the version
+-- /1.6.0/ so that the function now behaves much like the @cp@ utility, not
+-- traversing symlinked directories, but recreating symlinks in the target
+-- directory according to their targets in the source directory.
 
 copyDirRecur' :: (MonadIO m, MonadCatch m)
   => Path b0 Dir       -- ^ Source
@@ -407,16 +425,14 @@ copyDirRecur' = copyDirRecurGen False
 
 -- | Generic version of 'copyDirRecur'. The first argument controls whether
 -- to preserve directory permissions or not. /Does not/ follow symbolic
--- links.
---
--- __Note__: before version /1.3.0/, this function followed symlinks.
+-- links. Internal function.
 
 copyDirRecurGen :: MonadIO m
   => Bool              -- ^ Should we preserve directory permissions?
   -> Path b0 Dir       -- ^ Source
   -> Path b1 Dir       -- ^ Destination
   -> m ()
-copyDirRecurGen p src dest = liftIO $ do
+copyDirRecurGen preserveDirPermissions src dest = liftIO $ do
   bsrc  <- makeAbsolute src
   bdest <- makeAbsolute dest
   (dirs, files) <- listDirRecur bsrc
@@ -427,14 +443,28 @@ copyDirRecurGen p src dest = liftIO $ do
         -> IO (Path Abs t)
       swapParent old new path = (new </>) <$>
         stripProperPrefix old path
-  tdirs  <- mapM (swapParent bsrc bdest) dirs
-  tfiles <- mapM (swapParent bsrc bdest) files
   ensureDir bdest
-  mapM_ ensureDir tdirs
-  zipWithM_ copyFile files tfiles
-  when p $ do
+  forM_ dirs $ \srcDir -> do
+    destDir <- swapParent bsrc bdest srcDir
+    dirIsSymlink <- isSymlink srcDir
+    if dirIsSymlink
+      then do
+        target <- getSymlinkTarget srcDir
+        D.createDirectoryLink target $
+          F.dropTrailingPathSeparator (toFilePath destDir)
+      else ensureDir destDir
+    when preserveDirPermissions $
+      ignoringIOErrors (copyPermissions srcDir destDir)
+  forM_ files $ \srcFile -> do
+    destFile <- swapParent bsrc bdest srcFile
+    fileIsSymlink <- isSymlink srcFile
+    if fileIsSymlink
+      then do
+        target <- getSymlinkTarget srcFile
+        D.createFileLink target (toFilePath destFile)
+      else copyFile srcFile destFile
+  when preserveDirPermissions $
     ignoringIOErrors (copyPermissions bsrc bdest)
-    zipWithM_ (\s d -> ignoringIOErrors $ copyPermissions s d) dirs tdirs
 
 ----------------------------------------------------------------------------
 -- Walking directory trees
@@ -1240,7 +1270,10 @@ createDirLink
   => Path b0 Dir                -- ^ Path to the target directory
   -> Path b1 Dir                -- ^ Path to the link to be created
   -> m ()
-createDirLink = liftD2 D.createDirectoryLink
+createDirLink target' dest' = do
+  let target = toFilePath target'
+      dest = F.dropTrailingPathSeparator (toFilePath dest')
+  liftIO $ D.createDirectoryLink target dest
 
 -- | Remove an existing /directory/ symbolic link.
 --
@@ -1274,7 +1307,7 @@ getSymlinkTarget
   :: MonadIO m
   => Path b t                   -- ^ Symlink path
   -> m FilePath
-getSymlinkTarget = liftD D.getSymbolicLinkTarget
+getSymlinkTarget = liftD (D.getSymbolicLinkTarget . F.dropTrailingPathSeparator)
 
 -- | Check whether the path refers to a symbolic link.  An exception is thrown
 -- if the path does not exist or is inaccessible.

@@ -1,68 +1,75 @@
-name:                 path-io
-version:              1.6.0
-cabal-version:        1.18
-tested-with:          GHC==8.6.5, GHC==8.8.3, GHC==8.10.1
-license:              BSD3
-license-file:         LICENSE.md
-author:               Mark Karpov <markkarpov92@gmail.com>
-maintainer:           Mark Karpov <markkarpov92@gmail.com>
-homepage:             https://github.com/mrkkrp/path-io
-bug-reports:          https://github.com/mrkkrp/path-io/issues
-category:             System, Filesystem
-synopsis:             Interface to ‘directory’ package for users of ‘path’
-build-type:           Simple
-description:          Interface to ‘directory’ package for users of ‘path’.
-extra-doc-files:      CHANGELOG.md
-                    , README.md
-
-flag dev
-  description:        Turn on development settings.
-  manual:             True
-  default:            False
-
-library
-  build-depends:      base         >= 4.12    && < 5.0
-                    , containers
-                    , directory    >= 1.3.2.0 && < 1.4
-                    , dlist        >= 0.8     && < 0.9
-                    , exceptions   >= 0.8     && < 0.11
-                    , filepath     >= 1.2     && < 1.5
-                    , path         >= 0.6     && < 0.8
-                    , temporary    >= 1.1     && < 1.4
-                    , time         >= 1.4     && < 1.10
-                    , transformers >= 0.3     && < 0.6
-                    , unix-compat
-  exposed-modules:    Path.IO
-  if flag(dev)
-    ghc-options:      -Wall -Werror
-  else
-    ghc-options:      -O2 -Wall
-  if flag(dev)
-    ghc-options:      -Wcompat
-                      -Wincomplete-record-updates
-                      -Wincomplete-uni-patterns
-                      -Wnoncanonical-monad-instances
-  default-language:   Haskell2010
-
-test-suite tests
-  main-is:            Main.hs
-  hs-source-dirs:     tests
-  type:               exitcode-stdio-1.0
-  if flag(dev)
-    ghc-options:      -Wall -Werror
-  else
-    ghc-options:      -O2 -Wall
-  build-depends:      base         >= 4.12    && < 5.0
-                    , directory    >= 1.3.2.0 && < 1.4
-                    , exceptions   >= 0.8     && < 0.11
-                    , hspec        >= 2.0     && < 3.0
-                    , filepath     >= 1.2     && < 1.5
-                    , path         >= 0.6     && < 0.8
-                    , path-io
-                    , transformers >= 0.3     && < 0.6
-                    , unix-compat
-  default-language:   Haskell2010
+cabal-version:   1.18
+name:            path-io
+version:         1.6.0
+license:         BSD3
+license-file:    LICENSE.md
+maintainer:      Mark Karpov <markkarpov92@gmail.com>
+author:          Mark Karpov <markkarpov92@gmail.com>
+tested-with:     ghc ==8.6.5 ghc ==8.8.3 ghc ==8.10.1
+homepage:        https://github.com/mrkkrp/path-io
+bug-reports:     https://github.com/mrkkrp/path-io/issues
+synopsis:        Interface to ‘directory’ package for users of ‘path’
+description:     Interface to ‘directory’ package for users of ‘path’.
+category:        System, Filesystem
+build-type:      Simple
+extra-doc-files:
+    CHANGELOG.md
+    README.md
 
 source-repository head
-  type:               git
-  location:           https://github.com/mrkkrp/path-io.git
+    type:     git
+    location: https://github.com/mrkkrp/path-io.git
+
+flag dev
+    description: Turn on development settings.
+    default:     False
+    manual:      True
+
+library
+    exposed-modules:  Path.IO
+    default-language: Haskell2010
+    build-depends:
+        base >=4.12 && <5.0,
+        containers -any,
+        directory >=1.3.2.0 && <1.4,
+        dlist >=0.8 && <0.9,
+        exceptions >=0.8 && <0.11,
+        filepath >=1.2 && <1.5,
+        path >=0.6 && <0.8,
+        temporary >=1.1 && <1.4,
+        time >=1.4 && <1.10,
+        transformers >=0.3 && <0.6,
+        unix-compat -any
+
+    if flag(dev)
+        ghc-options: -Wall -Werror
+
+    else
+        ghc-options: -O2 -Wall
+
+    if flag(dev)
+        ghc-options:
+            -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns
+            -Wnoncanonical-monad-instances
+
+test-suite tests
+    type:             exitcode-stdio-1.0
+    main-is:          Main.hs
+    hs-source-dirs:   tests
+    default-language: Haskell2010
+    build-depends:
+        base >=4.12 && <5.0,
+        directory >=1.3.2.0 && <1.4,
+        exceptions >=0.8 && <0.11,
+        hspec >=2.0 && <3.0,
+        filepath >=1.2 && <1.5,
+        path >=0.6 && <0.8,
+        path-io -any,
+        transformers >=0.3 && <0.6,
+        unix-compat -any
+
+    if flag(dev)
+        ghc-options: -Wall -Werror
+
+    else
+        ghc-options: -O2 -Wall

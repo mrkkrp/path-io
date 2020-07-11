@@ -106,17 +106,15 @@ walkDirFinishSpec =
 
 copyDirRecurSpec :: SpecWith (Path Abs Dir)
 copyDirRecurSpec = do
-  context "when source directory is editable"
-    $ it "copies directory"
-    $ \src -> do
+  context "when source directory is editable" $
+    it "copies directory" $ \src -> do
       let dest = parent src </> $(mkRelDir "copied-dir")
       copyDirRecur src dest
       old <- getDirStructure listDirRecur src
       new <- getDirStructure listDirRecur dest
       old `shouldBe` new
-  context "when source directory is read-only"
-    $ it "copies directory just as well (preserving permissions)"
-    $ \src -> do
+  context "when source directory is read-only" $
+    it "copies directory just as well (preserving permissions)" $ \src -> do
       let dest = parent src </> $(mkRelDir "copied-dir")
       srcPermissions <- setOwnerWritable False <$> getPermissions src
       setPermissions src srcPermissions
@@ -128,9 +126,8 @@ copyDirRecurSpec = do
 
 copyDirRecur'Spec :: SpecWith (Path Abs Dir)
 copyDirRecur'Spec =
-  context "when source directory is read-only"
-    $ it "copies directory but now it's editable"
-    $ \src -> do
+  context "when source directory is read-only" $
+    it "copies directory but now it's editable" $ \src -> do
       let dest = parent src </> $(mkRelDir "copied-dir")
       srcPermissions <- setOwnerWritable False <$> getPermissions src
       setPermissions src srcPermissions

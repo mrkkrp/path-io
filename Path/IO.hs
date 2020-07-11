@@ -508,10 +508,8 @@ copyDirRecurGen preserveDirPermissions src dest = liftIO $ do
 -- The callback handler interface is designed to be highly flexible. There are
 -- two possible alternative ways to control the traversal:
 --
-
--- * In the context of the parent dir, decide which subdirs to descend into.
-
--- * In the context of the subdir, decide whether to traverse the subdir or not.
+-- - In the context of the parent dir, decide which subdirs to descend into.
+-- - In the context of the subdir, decide whether to traverse the subdir or not.
 --
 -- We choose the first approach here since it is more flexible and can
 -- achieve everything that the second one can. The additional benefit with
@@ -1434,8 +1432,9 @@ withSystemTempFile ::
   -- | Callback that can use the file
   (Path Abs File -> Handle -> m a) ->
   m a
-withSystemTempFile t action = getTempDir >>= \path ->
-  withTempFile path t action
+withSystemTempFile t action =
+  getTempDir >>= \path ->
+    withTempFile path t action
 
 -- | Create and use a temporary directory in the system standard temporary
 -- directory.
@@ -1451,8 +1450,9 @@ withSystemTempDir ::
   -- | Callback that can use the directory
   (Path Abs Dir -> m a) ->
   m a
-withSystemTempDir t action = getTempDir >>= \path ->
-  withTempDir path t action
+withSystemTempDir t action =
+  getTempDir >>= \path ->
+    withTempDir path t action
 
 -- | The function creates a temporary file in @rw@ mode. The created file
 -- isn't deleted automatically, so you need to delete it manually.
@@ -1521,9 +1521,10 @@ createTempDir ::
   String ->
   -- | Name of created temporary directory
   m (Path Abs Dir)
-createTempDir path t = liftIO $
-  makeAbsolute path >>= \apath ->
-    liftD2' T.createTempDirectory apath t >>= parseAbsDir
+createTempDir path t =
+  liftIO $
+    makeAbsolute path >>= \apath ->
+      liftD2' T.createTempDirectory apath t >>= parseAbsDir
 
 ----------------------------------------------------------------------------
 -- Existence tests

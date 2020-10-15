@@ -121,7 +121,7 @@ import Control.Monad.Catch
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
-import Control.Monad.Trans.Writer.Lazy (WriterT, execWriterT, tell)
+import Control.Monad.Trans.Writer.Strict (WriterT, execWriterT, tell)
 import qualified Data.DList as DList
 import Data.Either (lefts, rights)
 import Data.Kind (Type)

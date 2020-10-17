@@ -1,3 +1,8 @@
+## Path IO 1.6.1
+
+* Fixed a space leak in `walkDirAccum`. [Issue
+  55](https://github.com/mrkkrp/path-io/issues/55).
+
 ## Path IO 1.6.0
 
 * Changed how `copyDirRecur` and `copyDirRecur'` functions work. Previously,

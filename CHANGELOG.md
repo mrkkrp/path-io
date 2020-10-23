@@ -1,3 +1,7 @@
+## Path IO 1.6.2
+
+* Fixed a bug in the `findFilesWith` and based on it `findFiles` functions.
+
 ## Path IO 1.6.1
 
 * Fixed a space leak in `walkDirAccum`. [Issue

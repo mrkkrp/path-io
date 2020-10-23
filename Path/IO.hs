@@ -1242,7 +1242,7 @@ findFilesWith ::
 findFilesWith _ [] _ = return []
 findFilesWith f (d : ds) file = do
   bfile <- (</> file) <$> makeAbsolute d
-  exist <- doesFileExist file
+  exist <- doesFileExist bfile
   b <- if exist then f bfile else return False
   if b
     then (bfile :) <$> findFilesWith f ds file

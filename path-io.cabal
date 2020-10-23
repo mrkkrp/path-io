@@ -1,6 +1,6 @@
 cabal-version:   1.18
 name:            path-io
-version:         1.6.1
+version:         1.6.2
 license:         BSD3
 license-file:    LICENSE.md
 maintainer:      Mark Karpov <markkarpov92@gmail.com>

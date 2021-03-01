@@ -29,6 +29,7 @@ main = hspec . around withSandbox $ do
     describe "copyDirRecur"     copyDirRecurSpec
     describe "copyDirRecur'"    copyDirRecur'Spec
     describe "findFile"         findFileSpec
+    describe "removeDirLink"    removeDirLinkSpec
   beforeWith populatedCyclicDir $
     describe "listDirRecur Cyclic" listDirRecurCyclicSpec
 #endif
@@ -142,6 +143,15 @@ findFileSpec = it "finds a file lazily" $ \dir -> do
   let relFile = head (snd populatedDirTop)
   found <- findFile (dir : undefined) relFile
   found `shouldBe` Just (dir </> relFile)
+
+removeDirLinkSpec :: SpecWith (Path Abs Dir)
+removeDirLinkSpec = it "remove dir link" $ \dir -> do
+  let target = dir </> $(mkRelDir "a")
+      link = dir </> $(mkRelDir "link-a")
+  createDirLink target link
+  removeDirLink link
+  exists <- doesDirExist link
+  exists `shouldBe` False
 
 listDirRecurCyclicSpec :: SpecWith (Path Abs Dir)
 listDirRecurCyclicSpec =

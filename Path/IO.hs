@@ -482,7 +482,7 @@ copyDirRecurGen preserveDirPermissions src dest = liftIO $ do
       then do
         target <- getSymlinkTarget srcDir
         D.createDirectoryLink target $
-          F.dropTrailingPathSeparator (toFilePath destDir)
+          toFilePath' destDir
       else ensureDir destDir
     when preserveDirPermissions $
       ignoringIOErrors (copyPermissions srcDir destDir)
@@ -1324,7 +1324,7 @@ createDirLink ::
   m ()
 createDirLink target' dest' = do
   let target = toFilePath target'
-      dest = F.dropTrailingPathSeparator (toFilePath dest')
+      dest = toFilePath' dest'
   liftIO $ D.createDirectoryLink target dest
 
 -- | Remove an existing /directory/ symbolic link.
@@ -1359,7 +1359,7 @@ getSymlinkTarget ::
   -- | Symlink path
   Path b t ->
   m FilePath
-getSymlinkTarget = liftD (D.getSymbolicLinkTarget . F.dropTrailingPathSeparator)
+getSymlinkTarget = liftD D.getSymbolicLinkTarget
 
 -- | Check whether the path refers to a symbolic link.  An exception is thrown
 -- if the path does not exist or is inaccessible.
@@ -1374,7 +1374,7 @@ getSymlinkTarget = liftD (D.getSymbolicLinkTarget . F.dropTrailingPathSeparator)
 --
 -- @since 1.3.0
 isSymlink :: MonadIO m => Path b t -> m Bool
-isSymlink = liftD (D.pathIsSymbolicLink . F.dropTrailingPathSeparator)
+isSymlink = liftD D.pathIsSymbolicLink
 
 ----------------------------------------------------------------------------
 -- Temporary files and directories
@@ -1707,7 +1707,7 @@ liftD ::
   Path b t ->
   -- | Lifted action
   m a
-liftD m = liftIO . m . toFilePath
+liftD m = liftIO . m . toFilePath'
 {-# INLINE liftD #-}
 
 -- | Similar to 'liftD' for functions with arity 2.
@@ -1720,7 +1720,7 @@ liftD2 ::
   -- | Second 'Path' argument
   Path b1 t1 ->
   m a
-liftD2 m a b = liftIO $ m (toFilePath a) (toFilePath b)
+liftD2 m a b = liftIO $ m (toFilePath' a) (toFilePath' b)
 {-# INLINE liftD2 #-}
 
 -- | Similar to 'liftD2', but allows to pass second argument of arbitrary
@@ -1734,8 +1734,12 @@ liftD2' ::
   -- | Second argument
   v ->
   m a
-liftD2' m a v = liftIO $ m (toFilePath a) v
+liftD2' m a v = liftIO $ m (toFilePath' a) v
 {-# INLINE liftD2' #-}
+
+-- | Like 'toFilePath', but also drops the trailing path separator.
+toFilePath' :: Path b t -> FilePath
+toFilePath' = F.dropTrailingPathSeparator . toFilePath
 
 -- | Perform an action ignoring IO exceptions it may throw.
 ignoringIOErrors :: IO () -> IO ()

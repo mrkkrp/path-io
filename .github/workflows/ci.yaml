@@ -19,7 +19,7 @@ jobs:
     strategy:
       matrix:
         cabal: ["3.4"]
-        ghc: ["8.6.5", "8.8.4", "8.10.3"]
+        ghc: ["8.8.4", "8.10.4", "9.0.1"]
     env:
       CONFIG: "--enable-tests --enable-benchmarks --flags=dev"
     steps:
@@ -50,7 +50,7 @@ jobs:
     strategy:
       matrix:
         cabal: ["3.4"]
-        ghc: ["8.10.3"] # with older GHC dependencies fail to build
+        ghc: ["8.10.4", "9.0.1"]
     env:
       CONFIG: "--enable-tests --enable-benchmarks --flags=dev"
     steps:

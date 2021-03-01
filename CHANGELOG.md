@@ -1,3 +1,10 @@
+## Path IO 1.6.3
+
+* Fixed a bug that caused `removeDirLink` fail on Linux because of a
+  trailing slash that used to be passed to the underlying
+  `removeDirectoryLink` function from the `directory` package. [Issue
+  59](https://github.com/mrkkrp/path-io/issues/59).
+
 ## Path IO 1.6.2
 
 * Fixed a bug in the `findFilesWith` and based on it `findFiles` functions.

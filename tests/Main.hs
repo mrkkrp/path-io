@@ -18,8 +18,8 @@ main :: IO ()
 main = hspec . around withSandbox $ do
 #ifndef mingw32_HOST_OS
   beforeWith populatedDir $ do
-    -- NOTE These tests shall fail on Windows as unix-compat does not
-    -- implement createSymbolicLink for windows.
+    -- NOTE These tests fail on Windows as unix-compat does not implement
+    -- createSymbolicLink for windows.
     describe "listDir"          listDirSpec
     describe "listDirRel"       listDirRelSpec
     describe "listDirRecur"     listDirRecurSpec
@@ -90,10 +90,11 @@ listDirRecurWith dirPred filePred =
     f' <- filterM filePred f
     return (d', f')
 
--- | walkDir with a Finish handler may have unpredictable output depending on
--- the order of traversal. The only guarantee is that we will finish only after
--- we find the directory "c". Though if we test only for the presence of "c" we
--- are not really testing if we indeed cut the traversal short.
+-- | 'walkDir' with a 'WalkFinish' handler may have unpredictable output
+-- depending on the order of traversal. The only guarantee is that we will
+-- finish only after we find the directory "c". Though if we test only for
+-- the presence of "c" we are not really testing if we indeed cut the
+-- traversal short.
 walkDirFinishSpec :: SpecWith (Path Abs Dir)
 walkDirFinishSpec =
   it "Finishes only after finding what it is looking for" $ \dir -> do
@@ -159,7 +160,7 @@ listDirRecurCyclicSpec =
     getDirStructure listDirRecurCyclic dir
       `shouldReturn` populatedCyclicDirStructure
 
--- Follows symbolic links
+-- | Follows symbolic links.
 listDirRecurCyclic ::
   (MonadIO m, MonadThrow m) =>
   -- | Directory to list
@@ -254,9 +255,8 @@ getXdgCacheDirSpec =
 -- Helpers
 
 -- | Create a sandbox directory to model some situation in it and run some
--- tests. Note that we're using new unique sandbox directory for each test
--- case to avoid contamination and it's unconditionally deleted after test
--- case finishes.
+-- tests. Note that we're using a new unique sandbox directory for each test
+-- case and it's unconditionally deleted after test case finishes.
 withSandbox :: ActionWith (Path Abs Dir) -> IO ()
 withSandbox = withSystemTempDir "path-io-sandbox"
 
@@ -278,8 +278,8 @@ populatedDir root = do
   forM_ files $ (`writeFile` "") . toFilePath . withinSandbox
   return pdir
 
--- | Get inner structure of a directory. Items are sorted, so it's easier to
--- compare results.
+-- | Get the inner structure of a directory. Items are sorted, so it's
+-- easier to compare results.
 getDirStructure ::
   -- | Which function to use for scanning
   (Path Abs Dir -> IO ([Path Abs Dir], [Path Abs File])) ->

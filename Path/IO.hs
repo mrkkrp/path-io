@@ -13,7 +13,7 @@
 -- Portability :  portable
 --
 -- This module provides an interface to "System.Directory" for users of the
--- "Path" module. It also implements commonly used primitives like recursive
+-- "Path" module. It also implements some extra functionality like recursive
 -- scanning and copying of directories, working with temporary
 -- files\/directories, etc.
 module Path.IO
@@ -1697,8 +1697,8 @@ getModificationTime = liftD D.getModificationTime
 ----------------------------------------------------------------------------
 -- Helpers
 
--- | Lift action in 'IO' that takes 'FilePath' into action in slightly more
--- abstract monad that takes 'Path'.
+-- | Lift an action in 'IO' that takes 'FilePath' into an action in slightly
+-- more abstract monad that takes 'Path'.
 liftD ::
   MonadIO m =>
   -- | Original action
@@ -1710,7 +1710,7 @@ liftD ::
 liftD m = liftIO . m . toFilePath'
 {-# INLINE liftD #-}
 
--- | Similar to 'liftD' for functions with arity 2.
+-- | Similar to 'liftD' but for functions with arity 2.
 liftD2 ::
   MonadIO m =>
   -- | Original action
@@ -1723,7 +1723,7 @@ liftD2 ::
 liftD2 m a b = liftIO $ m (toFilePath' a) (toFilePath' b)
 {-# INLINE liftD2 #-}
 
--- | Similar to 'liftD2', but allows to pass second argument of arbitrary
+-- | Similar to 'liftD2', but allows us to pass second argument of arbitrary
 -- type.
 liftD2' ::
   MonadIO m =>

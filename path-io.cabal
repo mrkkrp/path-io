@@ -30,7 +30,7 @@ library
     default-language: Haskell2010
     build-depends:
         base >=4.12 && <5.0,
-        containers -any,
+        containers,
         directory >=1.3.2.0 && <1.4,
         dlist >=0.8 && <2.0,
         exceptions >=0.8 && <0.11,
@@ -39,7 +39,7 @@ library
         temporary >=1.1 && <1.4,
         time >=1.4 && <1.11,
         transformers >=0.3 && <0.6,
-        unix-compat -any
+        unix-compat
 
     if flag(dev)
         ghc-options: -Wall -Werror
@@ -64,9 +64,9 @@ test-suite tests
         hspec >=2.0 && <3.0,
         filepath >=1.2 && <1.5,
         path >=0.6 && <0.9,
-        path-io -any,
+        path-io,
         transformers >=0.3 && <0.6,
-        unix-compat -any
+        unix-compat
 
     if flag(dev)
         ghc-options: -Wall -Werror

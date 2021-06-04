@@ -5,6 +5,8 @@
   `removeDirectoryLink` function from the `directory` package. [Issue
   59](https://github.com/mrkkrp/path-io/issues/59).
 
+* Works with GHC 9.0.1.
+
 ## Path IO 1.6.2
 
 * Fixed a bug in the `findFilesWith` and based on it `findFiles` functions.

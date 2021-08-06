@@ -38,7 +38,7 @@ library
         path >=0.6 && <0.10,
         temporary >=1.1 && <1.4,
         time >=1.4 && <1.11,
-        transformers >=0.3 && <0.6,
+        transformers >=0.3 && <0.7,
         unix-compat
 
     if flag(dev)
@@ -65,7 +65,7 @@ test-suite tests
         filepath >=1.2 && <1.5,
         path >=0.6 && <0.10,
         path-io,
-        transformers >=0.3 && <0.6,
+        transformers >=0.3 && <0.7,
         unix-compat
 
     if flag(dev)

@@ -16,6 +16,9 @@ import Test.Hspec
 
 main :: IO ()
 main = hspec . around withSandbox $ do
+
+{- ORMOLU_DISABLE -}
+
 #ifndef mingw32_HOST_OS
   beforeWith populatedDir $ do
     -- NOTE These tests fail on Windows as unix-compat does not implement
@@ -37,7 +40,6 @@ main = hspec . around withSandbox $ do
   describe "setCurrentDir" setCurrentDirSpec
   describe "withCurrentDir" withCurrentDirSpec
   describe "walkDirRel" walkDirRelSpec
-
 #ifndef mingw32_HOST_OS
   -- NOTE We can't quite test this on Windows as well, because the
   -- environmental variables HOME and TMPDIR do not exist there.
@@ -47,6 +49,8 @@ main = hspec . around withSandbox $ do
   describe "getXdgDir Config" getXdgConfigDirSpec
   describe "getXdgDir Cache"  getXdgCacheDirSpec
 #endif
+
+{- ORMOLU_ENABLE -}
 
 listDirSpec :: SpecWith (Path Abs Dir)
 listDirSpec = it "lists directory" $ \dir ->

@@ -1,3 +1,8 @@
+## Path IO 1.7.0
+
+* Added `doesPathExist`, `getFileSize`, `renamePath`, and
+  `removePathForcibly`.
+
 ## Path IO 1.6.3
 
 * Fixed a bug that caused `removeDirLink` fail on Linux because of a

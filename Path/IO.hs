@@ -23,7 +23,9 @@ module Path.IO
     ensureDir,
     removeDir,
     removeDirRecur,
+    removePathForcibly,
     renameDir,
+    renamePath,
     listDir,
     listDirRel,
     listDirRecur,
@@ -64,6 +66,7 @@ module Path.IO
     removeFile,
     renameFile,
     copyFile,
+    getFileSize,
     findExecutable,
     findFile,
     findFiles,
@@ -86,6 +89,7 @@ module Path.IO
     createTempDir,
 
     -- * Existence tests
+    doesPathExist,
     doesFileExist,
     doesDirExist,
     isLocationOccupied,
@@ -241,6 +245,27 @@ removeDir = liftD D.removeDirectory
 removeDirRecur :: MonadIO m => Path b Dir -> m ()
 removeDirRecur = liftD D.removeDirectoryRecursive
 
+-- | Remove a file or directory at /path/ together with its contents and
+-- subdirectories. Symbolic links are removed without affecting their
+-- targets. If the path does not exist, nothing happens.
+--
+-- Unlike other removal functions, this function will also attempt to delete
+-- files marked as read-only or otherwise made unremovable due to permissions.
+-- As a result, if the removal is incomplete, the permissions or attributes on
+-- the remaining files may be altered.  If there are hard links in the
+-- directory, then permissions on all related hard links may be altered.
+--
+-- If an entry within the directory vanishes while @removePathForcibly@ is
+-- running, it is silently ignored.
+--
+-- If an exception occurs while removing an entry, @removePathForcibly@ will
+-- still try to remove as many entries as it can before failing with an
+-- exception.  The first exception that it encountered is re-thrown.
+--
+-- @since 1.7.0
+removePathForcibly :: MonadIO m => Path b t -> m ()
+removePathForcibly = liftD D.removePathForcibly
+
 -- | @'renameDir' old new@ changes the name of an existing directory from
 --  @old@ to @new@. If the @new@ directory already exists, it is atomically
 --  replaced by the @old@ directory. If the @new@ directory is neither the
@@ -294,6 +319,51 @@ renameDir ::
   Path b1 Dir ->
   m ()
 renameDir = liftD2 D.renameDirectory
+
+-- | Rename a file or directory.  If the destination path already exists, it
+-- is replaced atomically.  The destination path must not point to an existing
+-- directory.  A conformant implementation need not support renaming files in
+-- all situations (e.g. renaming across different physical devices), but the
+-- constraints must be documented.
+--
+-- The operation may fail with:
+--
+-- * @HardwareFault@
+-- A physical I\/O error has occurred.
+-- @[EIO]@
+--
+-- * @InvalidArgument@
+-- Either operand is not a valid file name.
+-- @[ENAMETOOLONG, ELOOP]@
+--
+-- * 'isDoesNotExistError'
+-- The original file does not exist, or there is no path to the target.
+-- @[ENOENT, ENOTDIR]@
+--
+-- * 'isPermissionError'
+-- The process has insufficient privileges to perform the operation.
+-- @[EROFS, EACCES, EPERM]@
+--
+-- * 'System.IO.isFullError'
+-- Insufficient resources are available to perform the operation.
+-- @[EDQUOT, ENOSPC, ENOMEM, EMLINK]@
+--
+-- * @UnsatisfiedConstraints@
+-- Implementation-dependent constraints are not satisfied.
+-- @[EBUSY]@
+--
+-- * @UnsupportedOperation@
+-- The implementation does not support renaming in this situation.
+-- @[EXDEV]@
+--
+-- * @InappropriateType@
+-- Either the destination path refers to an existing directory, or one of the
+-- parent segments in the destination path is not a directory.
+-- @[ENOTDIR, EISDIR, EINVAL, EEXIST, ENOTEMPTY]@
+--
+-- @since 1.7.0
+renamePath :: MonadIO m => Path b0 t -> Path b1 t -> m ()
+renamePath = liftD2 D.renamePath
 
 -- | @'listDir' dir@ returns a list of /all/ entries in @dir@ without the
 -- special entries (@.@ and @..@). Entries are not sorted.
@@ -1175,6 +1245,12 @@ copyFile ::
   m ()
 copyFile = liftD2 D.copyFile
 
+-- | Obtain the size of a file in bytes.
+--
+-- @since 1.7.0
+getFileSize :: MonadIO m => Path b File -> m Integer
+getFileSize = liftD D.getFileSize
+
 -- | Given an executable file name, search for such file in the directories
 -- listed in system @PATH@. The returned value is the path to the found
 -- executable or 'Nothing' if an executable with the given name was not
@@ -1528,6 +1604,14 @@ createTempDir path t =
 
 ----------------------------------------------------------------------------
 -- Existence tests
+
+-- | Test whether the given path points to an existing filesystem object. If
+-- the user lacks necessary permissions to search the parent directories,
+-- this function may return false even if the file does actually exist.
+--
+-- @since 1.7.0
+doesPathExist :: MonadIO m => Path b t -> m Bool
+doesPathExist = liftD D.doesPathExist
 
 -- | The operation 'doesFileExist' returns 'True' if the argument file
 -- exists and is not a directory, and 'False' otherwise.

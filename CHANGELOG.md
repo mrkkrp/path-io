@@ -1,3 +1,5 @@
+*Path IO follows [SemVer](https://semver.org/).*
+
 ## Path IO 1.7.0
 
 * Added `doesPathExist`, `getFileSize`, `renamePath`, and

@@ -1102,6 +1102,48 @@ instance AnyPath (Path b Dir) where
   makeRelative b p = parseRelDir (F.makeRelative (toFilePath b) (toFilePath p))
   makeRelativeToCurrentDir p = liftIO $ getCurrentDir >>= flip makeRelative p
 
+-- | @since 1.8.0
+instance AnyPath (SomeBase File) where
+  type AbsPath (SomeBase File) = Path Abs File
+  type RelPath (SomeBase File) = Path Rel File
+
+  canonicalizePath s = case s of
+    Abs a -> canonicalizePath a
+    Rel a -> canonicalizePath a
+
+  makeAbsolute s = case s of
+    Abs a -> makeAbsolute a
+    Rel a -> makeAbsolute a
+
+  makeRelative r s = case s of
+    Abs a -> makeRelative r a
+    Rel a -> makeRelative r a
+
+  makeRelativeToCurrentDir s = case s of
+    Abs a -> makeRelativeToCurrentDir a
+    Rel a -> makeRelativeToCurrentDir a
+
+-- | @since 1.8.0
+instance AnyPath (SomeBase Dir) where
+  type AbsPath (SomeBase Dir) = Path Abs Dir
+  type RelPath (SomeBase Dir) = Path Rel Dir
+
+  canonicalizePath s = case s of
+    Abs a -> canonicalizePath a
+    Rel a -> canonicalizePath a
+
+  makeAbsolute s = case s of
+    Abs a -> makeAbsolute a
+    Rel a -> makeAbsolute a
+
+  makeRelative r s = case s of
+    Abs a -> makeRelative r a
+    Rel a -> makeRelative r a
+
+  makeRelativeToCurrentDir s = case s of
+    Abs a -> makeRelativeToCurrentDir a
+    Rel a -> makeRelativeToCurrentDir a
+
 -- | Append stringly-typed path to an absolute path and then canonicalize
 -- it.
 --

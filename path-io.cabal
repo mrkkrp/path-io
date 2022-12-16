@@ -35,7 +35,7 @@ library
         dlist >=0.8 && <2.0,
         exceptions >=0.8 && <0.11,
         filepath >=1.2 && <1.5,
-        path >=0.6 && <0.10,
+        path >=0.7.1 && <0.10,
         temporary >=1.1 && <1.4,
         time >=1.4 && <1.13,
         transformers >=0.3 && <0.7,
@@ -63,7 +63,7 @@ test-suite tests
         exceptions >=0.8 && <0.11,
         hspec >=2.0 && <3.0,
         filepath >=1.2 && <1.5,
-        path >=0.6 && <0.10,
+        path >=0.7.1 && <0.10,
         path-io,
         transformers >=0.3 && <0.7,
         unix-compat

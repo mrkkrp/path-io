@@ -1,5 +1,10 @@
 *Path IO follows [SemVer](https://semver.org/).*
 
+## Path IO 1.8.0
+
+* Added instances of `AnyPath` for `SomeBase`. [PR
+  72](https://github.com/mrkkrp/path-io/pull/72).
+
 ## Path IO 1.7.0
 
 * Added `doesPathExist`, `getFileSize`, `renamePath`, and

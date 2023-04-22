@@ -545,7 +545,7 @@ copyDirRecurGen preserveDirPermissions src dest = liftIO $ do
         (new </>)
           <$> stripProperPrefix old path
   ensureDir bdest
-  forM_ dirs $ \srcDir -> do
+  copyPermissionsIOs <- forM dirs $ \srcDir -> do
     destDir <- swapParent bsrc bdest srcDir
     dirIsSymlink <- isSymlink srcDir
     if dirIsSymlink
@@ -554,8 +554,7 @@ copyDirRecurGen preserveDirPermissions src dest = liftIO $ do
         D.createDirectoryLink target $
           toFilePath' destDir
       else ensureDir destDir
-    when preserveDirPermissions $
-      ignoringIOErrors (copyPermissions srcDir destDir)
+    pure $ ignoringIOErrors (copyPermissions srcDir destDir)
   forM_ files $ \srcFile -> do
     destFile <- swapParent bsrc bdest srcFile
     fileIsSymlink <- isSymlink srcFile
@@ -564,8 +563,9 @@ copyDirRecurGen preserveDirPermissions src dest = liftIO $ do
         target <- getSymlinkTarget srcFile
         D.createFileLink target (toFilePath destFile)
       else copyFile srcFile destFile
-  when preserveDirPermissions $
+  when preserveDirPermissions $ do
     ignoringIOErrors (copyPermissions bsrc bdest)
+    sequence_ copyPermissionsIOs
 
 ----------------------------------------------------------------------------
 -- Walking directory trees

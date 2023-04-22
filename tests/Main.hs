@@ -274,12 +274,21 @@ populatedDir root = do
       pdir = root </> $(mkRelDir "pdir")
       withinSandbox = (pdir </>)
   ensureDir pdir
-  ensureDir $ withinSandbox $(mkRelDir "b")
+  let b = withinSandbox $(mkRelDir "b")
+  ensureDir b
   ensureDir $ withinSandbox $(mkRelDir "b/c")
-  -- to verify that we do not follow symbolic links. We should not list b's
-  -- tree under 'a'.
+  -- Create a read-only directory with a file inside to test that the code
+  -- that copies directory permissions can handle that gracefully.
+  --
+  -- See: https://github.com/mrkkrp/path-io/pull/82
+  let readonlyDir = withinSandbox $(mkRelDir "readonly-dir")
+  ensureDir readonlyDir
+  -- We should not list b's tree under 'a' in order to verify that we do not
+  -- follow symbolic links.
   createSymbolicLink "b" (toFilePath $ withinSandbox $(mkRelFile "a"))
   forM_ files $ (`writeFile` "") . toFilePath . withinSandbox
+  getPermissions readonlyDir
+    >>= setPermissions readonlyDir . setOwnerWritable False
   return pdir
 
 -- | Get the inner structure of a directory. Items are sorted, so it's
@@ -312,11 +321,13 @@ populatedDirStructure :: ([Path Rel Dir], [Path Rel File])
 populatedDirStructure =
   ( [ $(mkRelDir "a"),
       $(mkRelDir "b"),
-      $(mkRelDir "b/c")
+      $(mkRelDir "b/c"),
+      $(mkRelDir "readonly-dir")
     ],
     [ $(mkRelFile "b/c/three.txt"),
       $(mkRelFile "b/two.txt"),
-      $(mkRelFile "one.txt")
+      $(mkRelFile "one.txt"),
+      $(mkRelFile "readonly-dir/two.txt")
     ]
   )
 
@@ -359,26 +370,28 @@ populatedCyclicDir root = do
   createSymbolicLink "../../e" (toFilePath $ withinSandbox $(mkRelFile "e/f/g"))
   return pdir
 
--- | Top-level structure of populated directory as it should be scanned by
--- the 'listDir' function.
+-- | Top-level structure of the populated directory as it should be scanned
+-- by the 'listDir' function.
 populatedDirTop :: ([Path Rel Dir], [Path Rel File])
 populatedDirTop =
   ( [ $(mkRelDir "a"),
-      $(mkRelDir "b")
+      $(mkRelDir "b"),
+      $(mkRelDir "readonly-dir")
     ],
     [ $(mkRelFile "one.txt")
     ]
   )
 
--- | Structure of populated directory as it should be scanned by
--- 'listDirRecurWith' function using predicates to filter out dir 'c' and the
--- file 'two.txt'
+-- | Structure of the populated directory as it should be scanned by
+-- 'listDirRecurWith' function using predicates to filter out dir 'c' and
+-- the file @two.txt@.
 populatedDirRecurWith :: ([Path Rel Dir], [Path Rel File])
 populatedDirRecurWith =
   ( [ $(mkRelDir "a"),
-      $(mkRelDir "b")
+      $(mkRelDir "b"),
+      $(mkRelDir "readonly-dir")
     ],
-    [ $(mkRelFile "a/c/three.txt"), -- via symbolic link
+    [ $(mkRelFile "a/c/three.txt"), -- via a symbolic link
       $(mkRelFile "b/c/three.txt"),
       $(mkRelFile "one.txt")
     ]

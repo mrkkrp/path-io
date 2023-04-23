@@ -1,6 +1,6 @@
 *Path IO follows [SemVer](https://semver.org/).*
 
-## Unpublished
+## Path IO 1.8.1
 
 * Fixed a “permission denied” error occurring when `copyDirRecur` is used to
   copy a tree with non-empty read-only directories. [PR

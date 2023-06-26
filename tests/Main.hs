@@ -166,7 +166,7 @@ listDirRecurCyclicSpec =
 
 -- | Follows symbolic links.
 listDirRecurCyclic ::
-  (MonadIO m, MonadThrow m) =>
+  (MonadIO m) =>
   -- | Directory to list
   Path b Dir ->
   -- | Sub-directories and files

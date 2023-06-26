@@ -487,7 +487,7 @@ listDirRecurRel dir =
 -- traversing symlinked directories, but recreating symlinks in the target
 -- directory according to their targets in the source directory.
 copyDirRecur ::
-  (MonadIO m, MonadCatch m) =>
+  (MonadIO m) =>
   -- | Source
   Path b0 Dir ->
   -- | Destination
@@ -512,7 +512,7 @@ copyDirRecur = copyDirRecurGen True
 -- traversing symlinked directories, but recreating symlinks in the target
 -- directory according to their targets in the source directory.
 copyDirRecur' ::
-  (MonadIO m, MonadCatch m) =>
+  (MonadIO m) =>
   -- | Source
   Path b0 Dir ->
   -- | Destination

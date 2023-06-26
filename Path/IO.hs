@@ -126,19 +126,19 @@ import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Maybe (MaybeT (..), runMaybeT)
 import Control.Monad.Trans.Writer.Strict (WriterT, execWriterT, tell)
-import qualified Data.DList as DList
+import Data.DList qualified as DList
 import Data.Either (lefts, rights)
 import Data.Kind (Type)
 import Data.List ((\\))
-import qualified Data.Set as S
+import Data.Set qualified as S
 import Data.Time (UTCTime)
 import Path
-import qualified System.Directory as D
-import qualified System.FilePath as F
+import System.Directory qualified as D
+import System.FilePath qualified as F
 import System.IO (Handle)
 import System.IO.Error (isDoesNotExistError)
-import qualified System.IO.Temp as T
-import qualified System.PosixCompat.Files as P
+import System.IO.Temp qualified as T
+import System.PosixCompat.Files qualified as P
 
 ----------------------------------------------------------------------------
 -- Actions on directories

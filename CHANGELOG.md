@@ -1,5 +1,9 @@
 *Path IO follows [SemVer](https://semver.org/).*
 
+## Path IO 1.8.2
+
+* Maintenance release, compatibility with GHC 9.6, 9.8, and 9.10.
+
 ## Path IO 1.8.1
 
 * Fixed a “permission denied” error occurring when `copyDirRecur` is used to

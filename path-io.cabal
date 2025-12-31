@@ -37,7 +37,7 @@ library
         filepath >=1.2 && <1.6,
         path >=0.7.1 && <0.10,
         temporary >=1.1 && <1.4,
-        time >=1.4 && <1.15,
+        time >=1.4 && <1.16,
         transformers >=0.3 && <0.7,
         unix-compat
 

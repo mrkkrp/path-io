@@ -12,7 +12,7 @@ users of [`path`](https://hackage.haskell.org/package/path). It also
 implements some extra functionality like recursive scanning and copying of
 directories, working with temporary files/directories, etc.
 
-Consult Haddocks for usage, which should be trivial.
+Consult the Haddocks for usage, which should be trivial.
 
 ## Contribution
 
@@ -25,4 +25,4 @@ Pull requests are also welcome.
 
 Copyright © 2016–present Mark Karpov
 
-Distributed under BSD 3 clause license.
+Distributed under the BSD 3-clause license.

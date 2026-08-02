@@ -611,7 +611,7 @@ data WalkAction b
   = -- | Finish the entire walk altogether
     WalkFinish
   | -- | List of sub-directories to exclude from
-    -- descending
+    -- the descent
     WalkExclude [Path b Dir]
   deriving (Eq, Show)
 
@@ -711,9 +711,9 @@ walkDirRel handler topdir' = do
 -- well. Values returned by the output writer invocations are accumulated
 -- and returned.
 --
--- Both, the descend handler as well as the output writer can be used for
--- side effects but keep in mind that the output writer runs before the
--- descend handler.
+-- Both the descend handler and the output writer can be used for side
+-- effects, but keep in mind that the output writer runs before the descend
+-- handler.
 --
 -- @since 1.2.0
 walkDirAccum ::
@@ -1014,7 +1014,7 @@ getXdgDirList xdgDirList =
 -- Path transformation
 
 -- | Class of things ('Path's) that can be canonicalized, made absolute, and
--- made relative to a some base directory.
+-- made relative to some base directory.
 class AnyPath path where
   -- | Type of absolute version of the given @path@.
   type AbsPath path :: Type
@@ -1076,7 +1076,7 @@ class AnyPath path where
     path ->
     m (RelPath path)
 
-  -- | Make a path relative to current working directory.
+  -- | Make a path relative to the current working directory.
   --
   -- @since 0.3.0
   makeRelativeToCurrentDir ::
@@ -1144,7 +1144,7 @@ instance AnyPath (SomeBase Dir) where
     Abs a -> makeRelativeToCurrentDir a
     Rel a -> makeRelativeToCurrentDir a
 
--- | Append stringly-typed path to an absolute path and then canonicalize
+-- | Append a stringly-typed path to an absolute path and then canonicalize
 -- it.
 --
 -- @since 0.3.0
@@ -1157,7 +1157,7 @@ resolveFile ::
   m (Path Abs File)
 resolveFile b p = liftIO $ D.canonicalizePath (toFilePath b F.</> p) >>= parseAbsFile
 
--- | The same as 'resolveFile', but uses current working directory.
+-- | The same as 'resolveFile', but uses the current working directory.
 --
 -- @since 0.3.0
 resolveFile' ::
@@ -1179,7 +1179,7 @@ resolveDir ::
   m (Path Abs Dir)
 resolveDir b p = liftIO $ D.canonicalizePath (toFilePath b F.</> p) >>= parseAbsDir
 
--- | The same as 'resolveDir', but uses current working directory.
+-- | The same as 'resolveDir', but uses the current working directory.
 --
 -- @since 0.3.0
 resolveDir' ::
@@ -1293,8 +1293,8 @@ copyFile = liftD2 D.copyFile
 getFileSize :: (MonadIO m) => Path b File -> m Integer
 getFileSize = liftD D.getFileSize
 
--- | Given an executable file name, search for such file in the directories
--- listed in system @PATH@. The returned value is the path to the found
+-- | Given an executable file name, search for such a file in the directories
+-- listed in the system @PATH@. The returned value is the path to the found
 -- executable or 'Nothing' if an executable with the given name was not
 -- found. For example ('findExecutable' \"ghc\") gives you the path to GHC.
 --
@@ -1823,8 +1823,8 @@ getModificationTime = liftD D.getModificationTime
 ----------------------------------------------------------------------------
 -- Helpers
 
--- | Lift an action in 'IO' that takes 'FilePath' into an action in slightly
--- more abstract monad that takes 'Path'.
+-- | Lift an action in 'IO' that takes 'FilePath' into an action in a
+-- slightly more abstract monad that takes 'Path'.
 liftD ::
   (MonadIO m) =>
   -- | Original action
@@ -1849,8 +1849,8 @@ liftD2 ::
 liftD2 m a b = liftIO $ m (toFilePath' a) (toFilePath' b)
 {-# INLINE liftD2 #-}
 
--- | Similar to 'liftD2', but allows us to pass second argument of arbitrary
--- type.
+-- | Similar to 'liftD2', but allows us to pass a second argument of an
+-- arbitrary type.
 liftD2' ::
   (MonadIO m) =>
   -- | Original action

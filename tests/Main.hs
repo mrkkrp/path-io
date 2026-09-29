@@ -16,23 +16,20 @@ import Test.Hspec
 
 main :: IO ()
 main = hspec . around withSandbox $ do
-
-{- ORMOLU_DISABLE -}
-
 #ifndef mingw32_HOST_OS
   beforeWith populatedDir $ do
     -- NOTE These tests fail on Windows as unix-compat does not implement
     -- createSymbolicLink for windows.
-    describe "listDir"          listDirSpec
-    describe "listDirRel"       listDirRelSpec
-    describe "listDirRecur"     listDirRecurSpec
-    describe "listDirRecurRel"  listDirRecurRelSpec
+    describe "listDir" listDirSpec
+    describe "listDirRel" listDirRelSpec
+    describe "listDirRecur" listDirRecurSpec
+    describe "listDirRecurRel" listDirRecurRelSpec
     describe "listDirRecurWith" listDirRecurWithSpec
-    describe "walkDir Finish"   walkDirFinishSpec
-    describe "copyDirRecur"     copyDirRecurSpec
-    describe "copyDirRecur'"    copyDirRecur'Spec
-    describe "findFile"         findFileSpec
-    describe "removeDirLink"    removeDirLinkSpec
+    describe "walkDir Finish" walkDirFinishSpec
+    describe "copyDirRecur" copyDirRecurSpec
+    describe "copyDirRecur'" copyDirRecur'Spec
+    describe "findFile" findFileSpec
+    describe "removeDirLink" removeDirLinkSpec
   beforeWith populatedCyclicDir $
     describe "listDirRecur Cyclic" listDirRecurCyclicSpec
 #endif
@@ -43,14 +40,12 @@ main = hspec . around withSandbox $ do
 #ifndef mingw32_HOST_OS
   -- NOTE We can't quite test this on Windows as well, because the
   -- environmental variables HOME and TMPDIR do not exist there.
-  describe "getHomeDir"       getHomeDirSpec
-  describe "getTempDir"       getTempDirSpec
-  describe "getXdgDir Data"   getXdgDataDirSpec
+  describe "getHomeDir" getHomeDirSpec
+  describe "getTempDir" getTempDirSpec
+  describe "getXdgDir Data" getXdgDataDirSpec
   describe "getXdgDir Config" getXdgConfigDirSpec
-  describe "getXdgDir Cache"  getXdgCacheDirSpec
+  describe "getXdgDir Cache" getXdgCacheDirSpec
 #endif
-
-{- ORMOLU_ENABLE -}
 
 listDirSpec :: SpecWith (Path Abs Dir)
 listDirSpec = it "lists directory" $ \dir ->
@@ -141,7 +136,7 @@ copyDirRecur'Spec =
       old <- getDirStructure listDirRecur src
       new <- getDirStructure listDirRecur dest
       old `shouldBe` new
-      getPermissions dest `shouldReturn` srcPermissions {writable = True}
+      getPermissions dest `shouldReturn` srcPermissions{writable = True}
 
 findFileSpec :: SpecWith (Path Abs Dir)
 findFileSpec = it "finds a file lazily" $ \dir -> do
